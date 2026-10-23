@@ -135,7 +135,7 @@ func withCORS(origins []string, next http.Handler) http.Handler {
 					w.Header().Set("Access-Control-Allow-Credentials", "true")
 				}
 				w.Header().Set("Vary", "Origin")
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Range")
 				w.Header().Set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, ETag, X-Search-Sources")
 				w.Header().Set("Access-Control-Max-Age", "600")

@@ -100,8 +100,8 @@ type VideoInfo struct {
 	SourceURL  string `json:"sourceUrl"`
 }
 
-// Episode 是一集播放地址。ID 是来源内的稳定标识（线路序号 + 集序号），
-// 不使用可能过期的播放 URL，便于客户端保存观看进度。
+// Episode 是一集播放地址。ID 是来源内「名称优先」的稳定标识（如 e:第03集；
+// 无名称时为 e:@3），不是播放 URL；用于客户端保存观看进度。
 type Episode struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`

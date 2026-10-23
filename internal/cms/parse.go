@@ -294,12 +294,14 @@ func ParsePlayLines(playURL, playFrom string) []model.PlayLine {
 	}
 	fromParts := strings.Split(html.UnescapeString(strings.TrimSpace(playFrom)), "$$$")
 	lines := make([]model.PlayLine, 0, 4)
+	usedLineIDs := make(map[string]int, len(fromParts))
 	for _, group := range strings.Split(playURL, "$$$") {
 		group = strings.TrimSpace(group)
 		if group == "" {
 			continue
 		}
 		episodes := make([]model.Episode, 0, 8)
+		usedEpisodeIDs := make(map[string]int, 16)
 		for _, segment := range strings.Split(group, "#") {
 			segment = strings.TrimSpace(segment)
 			if segment == "" {
@@ -313,10 +315,11 @@ func ParsePlayLines(playURL, playFrom string) []model.PlayLine {
 			if !isHTTPURL(rawURL) {
 				continue
 			}
+			epIndex := len(episodes) + 1
 			episodes = append(episodes, model.Episode{
-				ID:    fmt.Sprintf("l%de%d", len(lines)+1, len(episodes)+1),
+				ID:    stableID("e:", name, strconv.Itoa(epIndex), usedEpisodeIDs),
 				Name:  name,
-				Index: len(episodes) + 1,
+				Index: epIndex,
 				URL:   rawURL,
 			})
 		}
@@ -332,14 +335,29 @@ func ParsePlayLines(playURL, playFrom string) []model.PlayLine {
 			lineName = fmt.Sprintf("线路%d", idx)
 		}
 		lines = append(lines, model.PlayLine{
-			ID:       fmt.Sprintf("l%d", idx),
+			ID:       stableID("ln:", lineName, strconv.Itoa(idx), usedLineIDs),
 			Name:     lineName,
 			Index:    idx,
 			Episodes: episodes,
 		})
 	}
+	RebuildIDs(lines)
 	markPreferredLine(lines)
 	return lines
+}
+
+// RebuildIDs 按名称优先规则重算线路/分集 ID。
+// 详情缓存或上游数据里可能是旧的 l1e1 形式，读取时调用本函数即可修正。
+func RebuildIDs(lines []model.PlayLine) {
+	usedLine := make(map[string]int, len(lines))
+	for i := range lines {
+		lines[i].ID = stableID("ln:", lines[i].Name, strconv.Itoa(lines[i].Index), usedLine)
+		usedEp := make(map[string]int, len(lines[i].Episodes))
+		for j := range lines[i].Episodes {
+			ep := &lines[i].Episodes[j]
+			ep.ID = stableID("e:", ep.Name, strconv.Itoa(ep.Index), usedEp)
+		}
+	}
 }
 
 // markPreferredLine 把第一条包含 m3u8 直链的线路标记为 preferred。
@@ -396,14 +414,39 @@ func flattenPreferredLineFiltered(lines []model.PlayLine) []string {
 // syntheticLine 把一组没有集名的地址包装成单线路（详情页/简介兜底用）。
 func syntheticLine(urls []string) model.PlayLine {
 	episodes := make([]model.Episode, 0, len(urls))
+	used := make(map[string]int, len(urls))
 	for i, u := range urls {
+		idx := i + 1
 		episodes = append(episodes, model.Episode{
-			ID:    fmt.Sprintf("l1e%d", i+1),
-			Index: i + 1,
+			ID:    stableID("e:", "", strconv.Itoa(idx), used),
+			Index: idx,
 			URL:   u,
 		})
 	}
-	return model.PlayLine{ID: "l1", Name: "线路1", Index: 1, Preferred: true, Episodes: episodes}
+	line := model.PlayLine{ID: "ln:线路1", Name: "线路1", Index: 1, Preferred: true, Episodes: episodes}
+	for j := range line.Episodes {
+		line.Episodes[j].ID = fmt.Sprintf("e:@%d", line.Episodes[j].Index)
+	}
+	return line
+}
+
+// stableID 生成「名称优先」的稳定标识：
+//   - 有名称：prefix + name，例如 e:第03集 / ln:ffm3u8；
+//   - 没名称：prefix + "@" + 序号兜底，例如 e:@3；
+//   - 同名重复：追加 #2/#3，避免同一线路内重名覆盖。
+//
+// 顺序变化（插入集数、调换线路）不会改变有名称的 ID；名称本身变化时，
+// 客户端应回退按 episodeName/index 匹配（见 docs/API.md）。
+func stableID(prefix, name, fallback string, used map[string]int) string {
+	base := prefix + name
+	if name == "" {
+		base = prefix + "@" + fallback
+	}
+	used[base]++
+	if n := used[base]; n > 1 {
+		return fmt.Sprintf("%s#%d", base, n)
+	}
+	return base
 }
 
 func isHTTPURL(s string) bool {

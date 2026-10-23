@@ -204,7 +204,7 @@ func validID(id string) bool {
 func cacheKey(id string, src model.SourceConfig) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\n%s\n%s", strings.TrimRight(src.URL, "/"), strings.TrimRight(src.Detail, "/"), id)
-	return "detail:v3:" + hex.EncodeToString(h.Sum(nil))[:32]
+	return "detail:v4:" + hex.EncodeToString(h.Sum(nil))[:32]
 }
 
 func decode(raw []byte) (*model.VideoDetail, error) {
@@ -230,6 +230,8 @@ func normalize(d *model.VideoDetail) *model.VideoDetail {
 	if d.PlayLines == nil {
 		d.PlayLines = []model.PlayLine{}
 	}
+	// 旧缓存可能是 l1e1 形式的 ID，按当前「名称优先」规则重建。
+	cms.RebuildIDs(d.PlayLines)
 	for i := range d.PlayLines {
 		d.PlayLines[i].Preferred = false
 	}

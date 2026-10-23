@@ -102,6 +102,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 		DetailCacheFresh:    time.Minute,
 		DetailCacheStale:    time.Minute,
 		RequestTimeout:      time.Second,
+		CorsOrigins:         []string{"http://localhost:3000"},
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	authMgr := auth.New(cfg.Password, "secret", time.Hour)
@@ -272,7 +273,7 @@ func TestDetailAndProxy(t *testing.T) {
 	if d.PlayLines[1].Name != "lineB" || d.PlayLines[1].Episodes[0].Name != "正片" {
 		t.Fatalf("line1 = %+v", d.PlayLines[1])
 	}
-	if d.PlayLines[0].Episodes[0].ID != "l1e1" || d.PlayLines[1].Episodes[0].ID != "l2e1" {
+	if d.PlayLines[0].Episodes[0].ID != "e:第1集" || d.PlayLines[1].Episodes[0].ID != "e:正片" {
 		t.Fatalf("episode ids = %q / %q", d.PlayLines[0].Episodes[0].ID, d.PlayLines[1].Episodes[0].ID)
 	}
 
@@ -297,8 +298,10 @@ func TestDetailAndProxy(t *testing.T) {
 
 func TestCORS(t *testing.T) {
 	ts, _ := newTestServer(t)
-	req, _ := http.NewRequest(http.MethodOptions, ts.URL+"/api/search", nil)
+	req, _ := http.NewRequest(http.MethodOptions, ts.URL+"/api/me/progress", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", "PUT")
+	req.Header.Set("Access-Control-Request-Headers", "content-type,authorization")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -306,5 +309,26 @@ func TestCORS(t *testing.T) {
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
 		t.Fatalf("preflight = %d", res.StatusCode)
+	}
+	if got := res.Header.Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
+		t.Fatalf("allow-origin = %q", got)
+	}
+	if got := res.Header.Get("Access-Control-Allow-Methods"); !strings.Contains(got, "PUT") {
+		t.Fatalf("allow-methods = %q", got)
+	}
+	if got := res.Header.Get("Access-Control-Allow-Headers"); !strings.Contains(strings.ToLower(got), "authorization") {
+		t.Fatalf("allow-headers = %q", got)
+	}
+
+	// 非白名单 Origin 不应获得放行头。
+	req, _ = http.NewRequest(http.MethodOptions, ts.URL+"/api/me/progress", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if got := res.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("unexpected allow-origin for evil origin: %q", got)
 	}
 }

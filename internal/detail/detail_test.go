@@ -29,6 +29,9 @@ func TestDecodeNormalizesPreferred(t *testing.T) {
 	if !d.PlayLines[1].Preferred {
 		t.Fatalf("m3u8 line should be preferred: %+v", d.PlayLines[1])
 	}
+	if d.PlayLines[0].ID != "ln:share" || d.PlayLines[0].Episodes[0].ID != "e:第01集" {
+		t.Fatalf("old ids should be rebuilt: %+v", d.PlayLines[0])
+	}
 }
 
 func TestNormalizeNoPlayLines(t *testing.T) {
@@ -63,7 +66,7 @@ func TestNormalizeKeepsSinglePreferred(t *testing.T) {
 func TestCacheKeyVersioned(t *testing.T) {
 	src := model.SourceConfig{URL: "https://a.test/api.php/provide/vod"}
 	key := cacheKey("1", src)
-	if key[:10] != "detail:v3:" {
+	if key[:10] != "detail:v4:" {
 		t.Fatalf("key = %q", key)
 	}
 }

@@ -41,7 +41,7 @@ func doJSON(t *testing.T, ts *httptest.Server, method, path, token string, body 
 func TestMeRequiresAuth(t *testing.T) {
 	ts, _ := newTestServer(t)
 	status, _ := doJSON(t, ts, http.MethodPut, "/api/me/progress", "", map[string]any{
-		"sourceKey": "a", "vodId": "1", "episodeId": "l1e1", "position": 1,
+		"sourceKey": "a", "vodId": "1", "episodeId": "e:第01集", "position": 1,
 	})
 	if status != http.StatusUnauthorized {
 		t.Fatalf("status = %d", status)
@@ -54,7 +54,7 @@ func TestProgressAndHistory(t *testing.T) {
 
 	body := map[string]any{
 		"sourceKey": "a", "sourceName": "源A", "vodId": "1", "title": "庆余年", "cover": "https://img.test/1.jpg",
-		"lineId": "l1", "lineName": "lineA", "episodeId": "l1e3", "episodeName": "第03集", "episodeIndex": 3,
+		"lineId": "ln:lineA", "lineName": "lineA", "episodeId": "e:第03集", "episodeName": "第03集", "episodeIndex": 3,
 		"position": 120, "duration": 2700, "completed": false,
 	}
 	status, data := doJSON(t, ts, http.MethodPut, "/api/me/progress", token, body)
@@ -65,7 +65,7 @@ func TestProgressAndHistory(t *testing.T) {
 	if err := json.Unmarshal(data, &saved); err != nil {
 		t.Fatal(err)
 	}
-	if saved["id"] != "a:1" || saved["episodeId"] != "l1e3" || saved["lineName"] != "lineA" {
+	if saved["id"] != "a:1" || saved["episodeId"] != "e:第03集" || saved["lineName"] != "lineA" {
 		t.Fatalf("saved = %v", saved)
 	}
 	if ts, ok := saved["updatedAt"].(float64); !ok || ts <= 0 {
@@ -124,10 +124,10 @@ func TestProgressValidation(t *testing.T) {
 	ts, _ := newTestServer(t)
 	token := login(t, ts)
 	cases := []map[string]any{
-		{"sourceKey": "a", "vodId": "1", "position": 1},                                      // 缺 episodeId
-		{"sourceKey": "", "vodId": "1", "episodeId": "l1e1", "position": 1},                  // 缺 sourceKey
-		{"sourceKey": "a", "vodId": "1", "episodeId": "l1e1", "position": -1},                // 负位置
-		{"sourceKey": "a", "vodId": "1", "episodeId": "l1e1", "position": 1, "duration": -1}, // 负时长
+		{"sourceKey": "a", "vodId": "1", "position": 1},                                        // 缺 episodeId
+		{"sourceKey": "", "vodId": "1", "episodeId": "e:第01集", "position": 1},                  // 缺 sourceKey
+		{"sourceKey": "a", "vodId": "1", "episodeId": "e:第01集", "position": -1},                // 负位置
+		{"sourceKey": "a", "vodId": "1", "episodeId": "e:第01集", "position": 1, "duration": -1}, // 负时长
 	}
 	for i, body := range cases {
 		if status, data := doJSON(t, ts, http.MethodPut, "/api/me/progress", token, body); status != http.StatusBadRequest {

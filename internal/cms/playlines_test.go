@@ -34,21 +34,21 @@ func TestParseDetailPlayLines(t *testing.T) {
 		t.Fatalf("playLines = %d: %+v", len(d.PlayLines), d.PlayLines)
 	}
 	line0 := d.PlayLines[0]
-	if line0.ID != "l1" || line0.Name != "ffm3u8" || line0.Index != 1 || !line0.Preferred {
+	if line0.ID != "ln:ffm3u8" || line0.Name != "ffm3u8" || line0.Index != 1 || !line0.Preferred {
 		t.Fatalf("line0 = %+v", line0)
 	}
 	if len(line0.Episodes) != 2 {
 		t.Fatalf("line0 episodes = %+v", line0.Episodes)
 	}
-	if got := line0.Episodes[0]; got.ID != "l1e1" || got.Name != "第01集" || got.Index != 1 ||
+	if got := line0.Episodes[0]; got.ID != "e:第01集" || got.Name != "第01集" || got.Index != 1 ||
 		got.URL != "https://a.test/1/index.m3u8" {
 		t.Fatalf("episode0 = %+v", got)
 	}
-	if got := line0.Episodes[1]; got.ID != "l1e2" || got.Name != "第02集" || got.Index != 2 {
+	if got := line0.Episodes[1]; got.ID != "e:第02集" || got.Name != "第02集" || got.Index != 2 {
 		t.Fatalf("episode1 = %+v", got)
 	}
 	line1 := d.PlayLines[1]
-	if line1.Name != "llm3u8" || line1.Index != 2 || len(line1.Episodes) != 2 || line1.Preferred {
+	if line1.ID != "ln:llm3u8" || line1.Name != "llm3u8" || line1.Index != 2 || len(line1.Episodes) != 2 || line1.Preferred {
 		t.Fatalf("line1 = %+v", line1)
 	}
 	if line1.Episodes[0].Name != "正片" || line1.Episodes[1].Name != "预告" {
@@ -93,7 +93,7 @@ func TestParseDetailBareEpisodeURLKept(t *testing.T) {
 	if d.PlayLines[0].Episodes[0].Name != "" {
 		t.Fatalf("bare episode name should be empty: %+v", d.PlayLines[0].Episodes[0])
 	}
-	if d.PlayLines[0].Episodes[0].ID != "l1e1" {
+	if d.PlayLines[0].Episodes[0].ID != "e:@1" {
 		t.Fatalf("id = %q", d.PlayLines[0].Episodes[0].ID)
 	}
 	// 旧字段仍按原语义丢弃无集名地址。
@@ -114,7 +114,7 @@ func TestParseDetailContentFallbackPlayLines(t *testing.T) {
 	if len(d.PlayLines) != 1 || len(d.PlayLines[0].Episodes) != 2 {
 		t.Fatalf("playLines = %+v", d.PlayLines)
 	}
-	if got := d.PlayLines[0].Episodes[0]; got.Name != "" || got.ID != "l1e1" || got.Index != 1 {
+	if got := d.PlayLines[0].Episodes[0]; got.Name != "" || got.ID != "e:@1" || got.Index != 1 {
 		t.Fatalf("episode = %+v", got)
 	}
 	if len(d.Episodes) != 2 {
@@ -133,7 +133,7 @@ func TestParseDetailPageHTMLPlayLines(t *testing.T) {
 	if len(d.PlayLines) != 1 || len(d.PlayLines[0].Episodes) != 2 {
 		t.Fatalf("playLines = %+v", d.PlayLines)
 	}
-	if d.PlayLines[0].Episodes[0].ID != "l1e1" || d.PlayLines[0].Name != "线路1" || !d.PlayLines[0].Preferred {
+	if d.PlayLines[0].Episodes[0].ID != "e:@1" || d.PlayLines[0].Name != "线路1" || !d.PlayLines[0].Preferred {
 		t.Fatalf("line = %+v", d.PlayLines[0])
 	}
 	if len(d.Episodes) != 2 {
@@ -147,5 +147,43 @@ func TestParsePlayLinesEmpty(t *testing.T) {
 	}
 	if got := ParsePlayLines("第01集$ftp://a/1.m3u8", ""); got == nil || len(got) != 0 {
 		t.Fatalf("non-http = %#v", got)
+	}
+}
+
+func TestEpisodeIDStableAcrossReordering(t *testing.T) {
+	// 上游调换线路顺序、并在前面插入一集后，有名称的集 ID 不应变化。
+	original := "第01集$https://a.test/1.m3u8#第02集$https://a.test/2.m3u8$$$第01集$https://b.test/1.m3u8"
+	reordered := "第00集$https://b.test/0.m3u8#第01集$https://b.test/1.m3u8$$$预告$https://a.test/t.m3u8#第01集$https://a.test/1.m3u8#第02集$https://a.test/2.m3u8"
+	from := "lineA$$$lineB"
+	ids := func(playURL string) map[string]string {
+		m := map[string]string{}
+		for _, line := range ParsePlayLines(playURL, from) {
+			for _, ep := range line.Episodes {
+				if ep.Name != "" {
+					m[ep.Name] = ep.ID
+				}
+			}
+		}
+		return m
+	}
+	before := ids(original)
+	after := ids(reordered)
+	for name, id := range before {
+		if after[name] != id {
+			t.Fatalf("id for %q changed: %q -> %q", name, id, after[name])
+		}
+	}
+	if before["第01集"] != "e:第01集" || before["第02集"] != "e:第02集" {
+		t.Fatalf("unexpected ids: %+v", before)
+	}
+}
+
+func TestEpisodeIDDuplicateNames(t *testing.T) {
+	lines := ParsePlayLines("正片$https://a.test/1.mp4#正片$https://a.test/2.mp4", "")
+	if len(lines) != 1 || len(lines[0].Episodes) != 2 {
+		t.Fatalf("lines = %+v", lines)
+	}
+	if lines[0].Episodes[0].ID != "e:正片" || lines[0].Episodes[1].ID != "e:正片#2" {
+		t.Fatalf("ids = %q, %q", lines[0].Episodes[0].ID, lines[0].Episodes[1].ID)
 	}
 }

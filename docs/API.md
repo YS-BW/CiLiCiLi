@@ -137,22 +137,22 @@ Base URL：`/api`。除特别说明外：
   "episodes": ["https://cdn.test/1/index.m3u8", "https://cdn.test/2/index.m3u8"],
   "playLines": [
     {
-      "id": "l1",
+      "id": "ln:ffm3u8",
       "name": "ffm3u8",
       "index": 1,
       "preferred": true,
       "episodes": [
-        {"id":"l1e1","name":"第01集","index":1,"url":"https://cdn.test/1/index.m3u8"},
+        {"id":"e:第01集","name":"第01集","index":1,"url":"https://cdn.test/1/index.m3u8"},
         {"id":"l1e2","name":"第02集","index":2,"url":"https://cdn.test/2/index.m3u8"}
       ]
     },
     {
-      "id": "l2",
+      "id": "ln:llm3u8",
       "name": "llm3u8",
       "index": 2,
       "preferred": false,
       "episodes": [
-        {"id":"l2e1","name":"正片","index":1,"url":"https://cdn2.test/full.mp4"}
+        {"id":"e:正片","name":"正片","index":1,"url":"https://cdn2.test/full.mp4"}
       ]
     }
   ],
@@ -172,8 +172,10 @@ Base URL：`/api`。除特别说明外：
 - `playLines[].preferred`：第一条包含 `.m3u8` 直链的线路为 `true`（采集站首条常是分享页/中转页），
   客户端可默认选它；服务端不探测线路是否真的可播。
 - `episodes[].name`：采集站原始集名（如「第01集」「正片」「预告」），没有则空字符串，不推测。
-- `episodes[].id`：来源内稳定标识，格式 `l<线路序号>e<集序号>`，**不是播放 URL**；客户端保存进度时应使用
-  它，而不是可能过期的 URL。
+- `episodes[].id`：来源内「名称优先」的稳定标识，格式 `e:<原始集名>`（如 `e:第03集`）。
+  **不是播放 URL**；顺序变化（插入集数/调换线路）不会改变它。无集名时退化为 `e:@<序号>`
+  （如 `e:@3`）；同一线路内重名追加 `#2`（如 `e:正片#2`）。
+- `playLines[].id`：线路稳定标识，格式 `ln:<线路名>`（如 `ln:ffm3u8`）；同名线路追加 `#2`。
 - `episodes[].index`：在该线路内的 1-based 顺序。
 - `episodes[].url`：播放地址，可能随时间失效；继续播放前应重新请求本接口。
 - 顶层 `episodes` 是旧字段（优先 m3u8 线路的扁平 URL 列表），仅用于兼容旧客户端；
@@ -182,7 +184,9 @@ Base URL：`/api`。除特别说明外：
 #### 标识与绑定规则
 
 - 影片身份：`sourceKey + vodId`（同一作品在不同源下是两条记录，第一版不做跨源合并）。
-- 分集身份：`lineId + episodeId`（服务端生成的 `l1e1` 形式），与 URL 解耦。
+- 分集身份：优先 `episodeId`（名称型，如 `e:第03集`），与 URL 解耦；跨线路同名集 ID 相同，
+  便于换线续播。客户端定位顺序应为：**episodeId → episodeName → episodeIndex**；
+  线路定位：**lineId → lineName → preferred 线路**。
 - 豆瓣 / Bangumi 推荐卡片的 `id` 属于推荐域，**不是**采集站 `vodId`；点击推荐后应先用标题调用
   `/api/search`，由用户选择源与影片。
 - 未知字段一律为空值，服务端不推测季数、时长、剧情或缩略图。
@@ -315,9 +319,9 @@ Base URL：`/api`。除特别说明外：
   "vodId": "12345",
   "title": "庆余年",
   "cover": "https://...",
-  "lineId": "l1",
+  "lineId": "ln:ffm3u8",
   "lineName": "ffm3u8",
-  "episodeId": "l1e3",
+  "episodeId": "e:第03集",
   "episodeName": "第03集",
   "episodeIndex": 3,
   "position": 120.5,
@@ -326,7 +330,8 @@ Base URL：`/api`。除特别说明外：
 }
 ```
 
-- `sourceKey` / `vodId` / `episodeId` 必填；`position`、`duration` 单位为秒，由播放器上报；
+- `sourceKey` / `vodId` / `episodeId` 必填；`position`、`duration` 单位为**秒**（前端播放器需按此上报，
+  不要传毫秒），由播放器上报；
   `duration <= 0` 表示未知。
 - 返回保存后的记录，包含服务端生成的 `id`（`sourceKey:vodId`）与 `updatedAt`（Unix 毫秒）。
 - 服务端不推断“已看完”：`completed` 由客户端给出。
@@ -334,7 +339,7 @@ Base URL：`/api`。除特别说明外：
 ### GET /api/me/history
 
 ```json
-{"items":[{"id":"env_0:12345","sourceKey":"env_0","vodId":"12345","episodeId":"l1e3","position":120.5,"duration":2700,"completed":false,"updatedAt":1760000000000}]}
+{"items":[{"id":"env_0:12345","sourceKey":"env_0","vodId":"12345","episodeId":"e:第03集","position":120.5,"duration":2700,"completed":false,"updatedAt":1760000000000}]}
 ```
 
 按 `updatedAt` 倒序。`unfinished=1` 过滤：`completed=false` 且 `position>0` 且（时长未知或未到 95%）。
@@ -351,6 +356,9 @@ Base URL：`/api`。除特别说明外：
 2. 播放中按节流（如每 5–10s、暂停/退出时）调用 `PUT /api/me/progress`，带当前 `episodeId`。
 3. 首页「继续观看」用 `GET /api/me/history?unfinished=1`；点击后**重新请求** `/api/detail` 拿最新
    `playLines`，再按 `episodeId` 定位分集播放（不要直接使用历史里的 URL）。
+   若采集站改名/调整导致 `episodeId` 找不到：先按 `episodeName` 精确匹配（优先同线路），
+   再按 `episodeIndex` 回退；线路同理（`lineId` → `lineName` → `preferred`）。
+   兼容旧版 `l1e3` 形式的进度：同样走这套回退。
 4. 收藏按钮调用 `PUT/DELETE /api/me/favorites`，快照用于无源时展示。
 5. 换源复用 `/api/search` + `/api/detail`；自动下一集由客户端按当前线路的 `episodes` 完成。
 
