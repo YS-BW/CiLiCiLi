@@ -13,7 +13,7 @@ func clearEnv(t *testing.T) {
 		"PASSWORD", "PROXY_SECRET", "LISTEN", "DATA_DIR", "CACHE_DB", "SOURCES_FILE",
 		"DEFAULT_SOURCES", "DEFAULT_LIVE_SOURCES", "DEFAULT_SUBSCRIPTIONS",
 		"SEARCH_MAX_PAGES", "SEARCH_SOURCE_TIMEOUT_MS", "SEARCH_SOFT_DEADLINE_MS",
-		"SEARCH_HARD_DEADLINE_MS", "REQUEST_TIMEOUT", "TOKEN_TTL", "APP_VERSION",
+		"SEARCH_HARD_DEADLINE_MS", "REQUEST_TIMEOUT", "TOKEN_TTL", "APP_VERSION", "USER_DB",
 		"USER_AGENT", "LIVE_ALLOW_PRIVATE", "CORS_ORIGINS", "LOG_LEVEL", "DEFAULT_RECOMMEND_SOURCE",
 	}
 	for _, k := range keys {
@@ -44,6 +44,9 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.CachePath != filepath.Join("./data", "cache.db") {
 		t.Errorf("CachePath = %q", cfg.CachePath)
+	}
+	if cfg.UserDB != filepath.Join("./data", "userdata.db") {
+		t.Errorf("UserDB = %q", cfg.UserDB)
 	}
 	if len(cfg.DefaultSources) != 0 {
 		t.Errorf("DefaultSources = %v", cfg.DefaultSources)

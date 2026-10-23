@@ -39,22 +39,31 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/detail", guard(d.API.Detail))
 	mux.HandleFunc("GET /api/sources", guard(d.API.Sources))
 	mux.HandleFunc("POST /api/sources/test", guard(d.API.SourceTest))
+	mux.HandleFunc("POST /api/sources/reset", guard(d.API.ResetSource))
 	mux.HandleFunc("GET /api/metrics", guard(d.API.Metrics))
+
+	// 观看进度与收藏（第一版默认用户）
+	mux.HandleFunc("PUT /api/me/progress", guard(d.API.PutProgress))
+	mux.HandleFunc("GET /api/me/history", guard(d.API.History))
+	mux.HandleFunc("DELETE /api/me/history/{id}", guard(d.API.DeleteHistory))
+	mux.HandleFunc("GET /api/me/favorites", guard(d.API.Favorites))
+	mux.HandleFunc("PUT /api/me/favorites", guard(d.API.PutFavorite))
+	mux.HandleFunc("DELETE /api/me/favorites/{id}", guard(d.API.DeleteFavorite))
 
 	// 代理自己处理鉴权（匿名图片域），这里不再套 guard。
 	mux.HandleFunc("GET /api/proxy", d.API.Proxy)
 	mux.HandleFunc("GET /api/proxy/{target...}", d.API.Proxy)
 
 	// 下一阶段接口：先占位，保证 Web/App 的契约固定。
-	mux.HandleFunc("POST /api/quality", guard(d.API.NotImplemented("画质探测")))
-	mux.HandleFunc("GET /api/source-list", guard(d.API.NotImplemented("源订阅")))
+	mux.HandleFunc("POST /api/quality", guard(d.API.Quality))
+	mux.HandleFunc("GET /api/source-list", guard(d.API.SourceList))
 	mux.HandleFunc("POST /api/publish", guard(d.API.NotImplemented("源发布")))
-	mux.HandleFunc("GET /api/douban", guard(d.API.NotImplemented("豆瓣推荐")))
-	mux.HandleFunc("GET /api/bangumi/calendar", guard(d.API.NotImplemented("Bangumi 放送表")))
-	mux.HandleFunc("GET /api/hot-list", guard(d.API.NotImplemented("影视榜单")))
-	mux.HandleFunc("GET /api/live/playlist", guard(d.API.NotImplemented("直播列表")))
-	mux.HandleFunc("GET /api/live/epg", guard(d.API.NotImplemented("EPG")))
-	mux.HandleFunc("POST /api/live/probe", guard(d.API.NotImplemented("直播测活")))
+	mux.HandleFunc("GET /api/douban", guard(d.API.Douban))
+	mux.HandleFunc("GET /api/bangumi/calendar", guard(d.API.Bangumi))
+	mux.HandleFunc("GET /api/hot-list", guard(d.API.HotList))
+	mux.HandleFunc("GET /api/live/playlist", guard(d.API.LivePlaylist))
+	mux.HandleFunc("GET /api/live/epg", guard(d.API.LiveEPG))
+	mux.HandleFunc("POST /api/live/probe", guard(d.API.LiveProbe))
 	mux.HandleFunc("GET /api/live/stream", d.API.LiveStream)
 	mux.HandleFunc("GET /api/live/stream/{target...}", d.API.LiveStream)
 

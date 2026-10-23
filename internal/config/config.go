@@ -18,6 +18,7 @@ type Config struct {
 	Listen    string
 	DataDir   string
 	CachePath string
+	UserDB    string
 
 	Version     string
 	Password    string
@@ -39,8 +40,16 @@ type Config struct {
 	DetailCacheFresh time.Duration
 	DetailCacheStale time.Duration
 
-	QualityCacheFresh time.Duration
-	QualityCacheFail  time.Duration
+	QualityCacheFresh  time.Duration
+	QualityCacheFail   time.Duration
+	QualityConcurrency int
+	QualityTimeout     time.Duration
+
+	LiveProbeConcurrency int
+	LiveTimeout          time.Duration
+
+	SixtyAPIBase     string
+	RecommendTimeout time.Duration
 
 	DefaultSources         []model.SourceConfig
 	DefaultLiveSources     []model.LiveSourceConfig
@@ -60,6 +69,7 @@ func Load() (*Config, error) {
 		Listen:      envString("LISTEN", ":8080"),
 		DataDir:     dataDir,
 		CachePath:   envString("CACHE_DB", filepath.Join(dataDir, "cache.db")),
+		UserDB:      envString("USER_DB", filepath.Join(dataDir, "userdata.db")),
 		Version:     envString("APP_VERSION", "dev"),
 		Password:    os.Getenv("PASSWORD"),
 		ProxySecret: os.Getenv("PROXY_SECRET"),
@@ -80,8 +90,16 @@ func Load() (*Config, error) {
 		DetailCacheFresh: envDuration("DETAIL_CACHE_TTL_MS", 10*time.Minute),
 		DetailCacheStale: envDuration("DETAIL_CACHE_STALE_MS", 24*time.Hour),
 
-		QualityCacheFresh: envDuration("QUALITY_CACHE_TTL_MS", 30*24*time.Hour),
-		QualityCacheFail:  envDuration("QUALITY_CACHE_FAIL_MS", 2*time.Minute),
+		QualityCacheFresh:  envDuration("QUALITY_CACHE_TTL_MS", 30*24*time.Hour),
+		QualityCacheFail:   envDuration("QUALITY_CACHE_FAIL_MS", 2*time.Minute),
+		QualityConcurrency: envInt("QUALITY_CONCURRENCY", 3),
+		QualityTimeout:     envDuration("QUALITY_TIMEOUT_MS", 8*time.Second),
+
+		LiveProbeConcurrency: envInt("LIVE_PROBE_CONCURRENCY", 16),
+		LiveTimeout:          envDuration("LIVE_TIMEOUT_MS", 10*time.Second),
+
+		SixtyAPIBase:     envString("60S_API_BASE", "https://60s.crystelf.top"),
+		RecommendTimeout: envDuration("RECOMMEND_TIMEOUT_MS", 10*time.Second),
 
 		DefaultRecommendSource: envString("DEFAULT_RECOMMEND_SOURCE", ""),
 		DefaultImageMode:       envString("DEFAULT_IMAGE_MODE", ""),
@@ -98,6 +116,11 @@ func Load() (*Config, error) {
 	cfg.SearchSoftDeadline = clampDuration(cfg.SearchSoftDeadline, 200*time.Millisecond, 10*time.Second)
 	cfg.SearchHardDeadline = clampDuration(cfg.SearchHardDeadline, cfg.SearchSoftDeadline, 30*time.Second)
 	cfg.RequestTimeout = clampDuration(cfg.RequestTimeout, time.Second, 60*time.Second)
+	cfg.QualityConcurrency = clamp(cfg.QualityConcurrency, 1, 16)
+	cfg.QualityTimeout = clampDuration(cfg.QualityTimeout, 2*time.Second, 30*time.Second)
+	cfg.LiveProbeConcurrency = clamp(cfg.LiveProbeConcurrency, 1, 64)
+	cfg.LiveTimeout = clampDuration(cfg.LiveTimeout, 3*time.Second, 60*time.Second)
+	cfg.RecommendTimeout = clampDuration(cfg.RecommendTimeout, 2*time.Second, 60*time.Second)
 
 	if cfg.ProxySecret == "" && cfg.Password != "" {
 		// 与 LibreTV 一致：未显式配置时从 PASSWORD 派生；仍建议生产环境显式设置。

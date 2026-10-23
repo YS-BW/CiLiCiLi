@@ -1,0 +1,24 @@
+{
+  "name": "我的全站源",
+  "version": 2,
+  "sources": [
+    {
+      "name": "源A",
+      "url": "https://vod.example.com/api.php/provide/vod",
+      "detail": "https://vod.example.com",
+      "isAdult": true
+    },
+    {
+      "name": "源B",
+      "url": "https://vod2.example.com/api.php/provide/vod/",
+      "isAdult": false
+    }
+  ],
+  "liveSources": [
+    {
+      "name": "直播A",
+      "url": "https://live.example.com/list.m3u",
+      "epg": "https://live.example.com/epg.xml.gz"
+    }
+  ]
+}

@@ -215,6 +215,7 @@ type rawDetailItem struct {
 	VodActor    flexString `json:"vod_actor"`
 	VodRemarks  flexString `json:"vod_remarks"`
 	VodPlayURL  flexString `json:"vod_play_url"`
+	VodPlayFrom flexString `json:"vod_play_from"`
 }
 
 // ParseDetail 解析 Apple CMS 的详情响应（ac=videolist&ids=...）。
@@ -248,14 +249,20 @@ func ParseDetail(data []byte, src model.SourceConfig) (*model.VideoDetail, error
 		return nil, fmt.Errorf("获取到的详情内容无效: %w", err)
 	}
 
-	episodes := ExtractEpisodesFromPlayURL(string(raw.VodPlayURL))
 	content := html.UnescapeString(string(raw.VodContent))
-	if len(episodes) == 0 {
-		episodes = ExtractM3U8FromText(content)
+	playLines := ParsePlayLines(string(raw.VodPlayURL), string(raw.VodPlayFrom))
+	episodes := flattenPreferredLineFiltered(playLines)
+	if len(playLines) == 0 {
+		// 列表接口没有播放地址时，从简介里的 m3u8 兜底成一条线路。
+		if links := ExtractM3U8FromText(content); len(links) > 0 {
+			playLines = []model.PlayLine{syntheticLine(links)}
+			episodes = links
+		}
 	}
 	key, name, url := sourceFields(src)
 	return &model.VideoDetail{
-		Episodes: episodes,
+		Episodes:  episodes,
+		PlayLines: playLines,
 		VideoInfo: model.VideoInfo{
 			Title: cleanField(string(raw.VodName)),
 			Cover: cleanField(string(raw.VodPic)),
@@ -276,44 +283,127 @@ func ParseDetail(data []byte, src model.SourceConfig) (*model.VideoDetail, error
 
 // ---------------------------------------------------------------- 播放地址
 
-// ExtractEpisodesFromPlayURL 从 vod_play_url 提取一线路的分集直链。
-// 格式为「线路1$$$线路2」，每线路「集1$url#集2$url」；优先取含 .m3u8 的线路，
-// 均无 m3u8 时取第一条线路（部分源首页线路是网页中转页，不可直接播放）。
-func ExtractEpisodesFromPlayURL(playURL string) []string {
-	// 部分源站把播放地址里的 & 转义成 &amp;，先还原再解析，否则播放器拿到的是坏 URL。
+// ParsePlayLines 解析 vod_play_url / vod_play_from 中的全部线路与分集。
+// 格式：线路之间用 $$$ 分隔，每线路内集用 # 分隔，集内「集名$地址」。
+// 行名来自 vod_play_from（同样用 $$$ 分隔）；缺失时生成「线路N」。
+// 集名原样保留；地址只接受 http(s)；没有 $ 的裸地址也保留，集名为空。
+func ParsePlayLines(playURL, playFrom string) []model.PlayLine {
 	playURL = html.UnescapeString(strings.TrimSpace(playURL))
 	if playURL == "" {
-		return []string{}
+		return []model.PlayLine{}
 	}
-	groups := make([][]string, 0, 2)
+	fromParts := strings.Split(html.UnescapeString(strings.TrimSpace(playFrom)), "$$$")
+	lines := make([]model.PlayLine, 0, 4)
 	for _, group := range strings.Split(playURL, "$$$") {
-		episodes := make([]string, 0, 8)
-		for _, segment := range strings.Split(group, "#") {
-			parts := strings.Split(segment, "$")
-			if len(parts) < 2 {
-				continue
-			}
-			url := strings.TrimSpace(parts[1])
-			if !isHTTPURL(url) {
-				continue
-			}
-			episodes = append(episodes, url)
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
 		}
-		if len(episodes) > 0 {
-			groups = append(groups, episodes)
+		episodes := make([]model.Episode, 0, 8)
+		for _, segment := range strings.Split(group, "#") {
+			segment = strings.TrimSpace(segment)
+			if segment == "" {
+				continue
+			}
+			name, rawURL := "", segment
+			if idx := strings.IndexByte(segment, '$'); idx >= 0 {
+				name = strings.TrimSpace(segment[:idx])
+				rawURL = strings.TrimSpace(segment[idx+1:])
+			}
+			if !isHTTPURL(rawURL) {
+				continue
+			}
+			episodes = append(episodes, model.Episode{
+				ID:    fmt.Sprintf("l%de%d", len(lines)+1, len(episodes)+1),
+				Name:  name,
+				Index: len(episodes) + 1,
+				URL:   rawURL,
+			})
+		}
+		if len(episodes) == 0 {
+			continue
+		}
+		idx := len(lines) + 1
+		lineName := ""
+		if idx-1 < len(fromParts) {
+			lineName = strings.TrimSpace(fromParts[idx-1])
+		}
+		if lineName == "" {
+			lineName = fmt.Sprintf("线路%d", idx)
+		}
+		lines = append(lines, model.PlayLine{
+			ID:       fmt.Sprintf("l%d", idx),
+			Name:     lineName,
+			Index:    idx,
+			Episodes: episodes,
+		})
+	}
+	markPreferredLine(lines)
+	return lines
+}
+
+// markPreferredLine 把第一条包含 m3u8 直链的线路标记为 preferred。
+// 采集站的首条线路常是分享页/中转页，不能直接播放；只按扩展名做提示，不做探测。
+func markPreferredLine(lines []model.PlayLine) {
+	for i := range lines {
+		for _, ep := range lines[i].Episodes {
+			if strings.Contains(strings.ToLower(ep.URL), ".m3u8") {
+				lines[i].Preferred = true
+				return
+			}
 		}
 	}
-	if len(groups) == 0 {
+}
+
+// ExtractEpisodesFromPlayURL 从 vod_play_url 提取优先线路的分集直链（旧字段兼容）。
+// 优先取包含 .m3u8 的线路，均无 m3u8 时取第一条线路。
+func ExtractEpisodesFromPlayURL(playURL string) []string {
+	return flattenPreferredLineFiltered(ParsePlayLines(playURL, ""))
+}
+
+// preferredLine 返回优先线路：第一条包含 m3u8 的线路，否则第一条。
+func preferredLine(lines []model.PlayLine) (model.PlayLine, bool) {
+	if len(lines) == 0 {
+		return model.PlayLine{}, false
+	}
+	for _, line := range lines {
+		for _, ep := range line.Episodes {
+			if strings.Contains(ep.URL, ".m3u8") {
+				return line, true
+			}
+		}
+	}
+	return lines[0], true
+}
+
+// flattenPreferredLineFiltered 是旧 Episodes 字段的语义：优先线路里必须有集名
+// （裸 URL 视为格式异常而跳过），避免旧客户端把无名的中转地址当成正片。
+func flattenPreferredLineFiltered(lines []model.PlayLine) []string {
+	line, ok := preferredLine(lines)
+	if !ok {
 		return []string{}
 	}
-	for _, episodes := range groups {
-		for _, url := range episodes {
-			if strings.Contains(url, ".m3u8") {
-				return episodes
-			}
+	out := make([]string, 0, len(line.Episodes))
+	for _, ep := range line.Episodes {
+		if ep.Name == "" {
+			continue
 		}
+		out = append(out, ep.URL)
 	}
-	return groups[0]
+	return out
+}
+
+// syntheticLine 把一组没有集名的地址包装成单线路（详情页/简介兜底用）。
+func syntheticLine(urls []string) model.PlayLine {
+	episodes := make([]model.Episode, 0, len(urls))
+	for i, u := range urls {
+		episodes = append(episodes, model.Episode{
+			ID:    fmt.Sprintf("l1e%d", i+1),
+			Index: i + 1,
+			URL:   u,
+		})
+	}
+	return model.PlayLine{ID: "l1", Name: "线路1", Index: 1, Preferred: true, Episodes: episodes}
 }
 
 func isHTTPURL(s string) bool {
@@ -377,5 +467,10 @@ func ParseDetailPageHTML(page []byte, src model.SourceConfig) *model.VideoDetail
 	if m := htmlSketchRE.FindStringSubmatch(text); m != nil {
 		info.Desc = normalizeText(m[1])
 	}
-	return &model.VideoDetail{Episodes: episodes, VideoInfo: info}
+	line := syntheticLine(episodes)
+	playLines := []model.PlayLine{}
+	if len(line.Episodes) > 0 {
+		playLines = append(playLines, line)
+	}
+	return &model.VideoDetail{Episodes: episodes, PlayLines: playLines, VideoInfo: info}
 }

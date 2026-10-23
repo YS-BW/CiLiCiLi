@@ -1,0 +1,4 @@
+[
+  { "name": "源A", "url": "https://a.example.com/api.php/provide/vod" },
+  { "url": "https://b.example.com/api.php/provide/vod", "isAdult": true }
+]

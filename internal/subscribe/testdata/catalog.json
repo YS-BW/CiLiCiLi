@@ -1,0 +1,5 @@
+[
+  { "name": "接口A", "baseUrl": "https://a.example.com/api.php/provide/vod" },
+  { "baseUrl": "https://b.example.com/api.php/provide/vod/" },
+  { "name": "停用", "baseUrl": "https://c.example.com/api.php/provide/vod", "enabled": false }
+]

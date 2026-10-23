@@ -85,24 +85,48 @@ type DoneEvent struct {
 
 // VideoInfo 是详情页的元信息。
 type VideoInfo struct {
-	Title      string `json:"title,omitempty"`
-	Cover      string `json:"cover,omitempty"`
-	Desc       string `json:"desc,omitempty"`
-	TypeName   string `json:"typeName,omitempty"`
-	Year       string `json:"year,omitempty"`
-	Area       string `json:"area,omitempty"`
-	Director   string `json:"director,omitempty"`
-	Actor      string `json:"actor,omitempty"`
-	Remarks    string `json:"remarks,omitempty"`
+	// 以下字段始终返回（未知时为空字符串），方便客户端统一渲染，不做推测。
+	Title      string `json:"title"`
+	Cover      string `json:"cover"`
+	Desc       string `json:"desc"`
+	TypeName   string `json:"typeName"`
+	Year       string `json:"year"`
+	Area       string `json:"area"`
+	Director   string `json:"director"`
+	Actor      string `json:"actor"`
+	Remarks    string `json:"remarks"`
 	SourceKey  string `json:"sourceKey"`
 	SourceName string `json:"sourceName"`
-	SourceURL  string `json:"sourceUrl,omitempty"`
+	SourceURL  string `json:"sourceUrl"`
+}
+
+// Episode 是一集播放地址。ID 是来源内的稳定标识（线路序号 + 集序号），
+// 不使用可能过期的播放 URL，便于客户端保存观看进度。
+type Episode struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Index int    `json:"index"`
+	URL   string `json:"url"`
+}
+
+// PlayLine 是采集站的一条播放线路。Name 来自 vod_play_from，缺失时由服务端
+// 生成「线路N」；Episodes 保留原始集名与顺序。
+type PlayLine struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Index int    `json:"index"`
+	// Preferred 表示该线路包含 m3u8 直链（采集站常见的“分享页”线路不含），
+	// 客户端可默认选它；服务端不探测线路是否可播放。
+	Preferred bool      `json:"preferred"`
+	Episodes  []Episode `json:"episodes"`
 }
 
 // VideoDetail 是详情接口的响应。
+// Episodes 是向后兼容的扁平播放地址（优先 m3u8 线路）；新客户端应使用 PlayLines。
 type VideoDetail struct {
-	Episodes  []string  `json:"episodes"`
-	VideoInfo VideoInfo `json:"videoInfo"`
+	Episodes  []string   `json:"episodes"`
+	PlayLines []PlayLine `json:"playLines"`
+	VideoInfo VideoInfo  `json:"videoInfo"`
 }
 
 // QualityProbeItem 是一次画质探测的输入。

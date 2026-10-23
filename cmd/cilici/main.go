@@ -20,11 +20,16 @@ import (
 	"cilicili/internal/cache"
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
+	"cilicili/internal/live"
 	"cilicili/internal/proxy"
+	"cilicili/internal/quality"
+	"cilicili/internal/recommend"
 	"cilicili/internal/search"
 	"cilicili/internal/server"
 	"cilicili/internal/source"
+	"cilicili/internal/subscribe"
 	"cilicili/internal/upstream"
+	"cilicili/internal/userdata"
 )
 
 // version 由 -ldflags "-X main.version=..." 注入。
@@ -66,6 +71,9 @@ func run() error {
 			}
 		}
 	}
+	if cfg.UserDB != "" && filepath.Clean(cfg.UserDB) == filepath.Clean(cfg.CachePath) {
+		return fmt.Errorf("USER_DB 不能与 CACHE_DB 相同（bbolt 单进程独占）")
+	}
 
 	store, err := cache.New(cache.Config{
 		Path:             cfg.CachePath,
@@ -76,6 +84,12 @@ func run() error {
 		return fmt.Errorf("打开缓存失败: %w", err)
 	}
 	defer store.Close()
+
+	userStore, err := userdata.New(cfg.UserDB)
+	if err != nil {
+		return fmt.Errorf("打开用户数据失败: %w", err)
+	}
+	defer userStore.Close()
 
 	health, err := source.NewHealthStore(source.HealthConfig{
 		Path:      filepath.Join(cfg.DataDir, "health.db"),
@@ -125,6 +139,37 @@ func run() error {
 		CacheFresh: cfg.DetailCacheFresh,
 		CacheStale: cfg.DetailCacheStale,
 	})
+	qualityProber := quality.New(quality.Options{
+		Client:          client,
+		Cache:           store,
+		Logger:          log,
+		UA:              cfg.UserAgent,
+		Timeout:         cfg.QualityTimeout,
+		Concurrency:     cfg.QualityConcurrency,
+		HostConcurrency: 3,
+	})
+	liveService := live.New(live.Options{
+		Client:           client,
+		Cache:            store,
+		Logger:           log,
+		UA:               cfg.UserAgent,
+		AllowPrivate:     cfg.LiveAllowPrivate,
+		Timeout:          cfg.LiveTimeout,
+		ProbeConcurrency: cfg.LiveProbeConcurrency,
+	})
+	recommendFetcher := recommend.New(recommend.Options{
+		Client:       client,
+		Cache:        store,
+		Logger:       log,
+		UA:           cfg.UserAgent,
+		SixtyAPIBase: cfg.SixtyAPIBase,
+		Timeout:      cfg.RecommendTimeout,
+	})
+	subscribeFetcher := subscribe.New(subscribe.Options{
+		Client:  client,
+		Logger:  log,
+		Timeout: cfg.RequestTimeout,
+	})
 
 	authMgr := auth.New(cfg.Password, cfg.ProxySecret, cfg.TokenTTL)
 
@@ -158,6 +203,11 @@ func run() error {
 		Client:    client,
 		Proxy:     proxyHandler,
 		LiveProxy: liveProxy,
+		Quality:   qualityProber,
+		Live:      liveService,
+		Recommend: recommendFetcher,
+		Subscribe: subscribeFetcher,
+		UserData:  userStore,
 		Version:   cfg.Version,
 	})
 

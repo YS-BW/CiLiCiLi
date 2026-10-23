@@ -1,0 +1,78 @@
+[
+  {
+    "weekday": {
+      "en": "Mon",
+      "cn": "星期一",
+      "ja": "月耀日",
+      "id": 1
+    },
+    "items": [
+      {
+        "id": 390200,
+        "name": "列女战纪：女娲石记",
+        "name_cn": "列女战纪：女娲石记",
+        "images": {
+          "large": "http://lain.bgm.tv/pic/cover/l/1c/b4/390200_Z9jPp.jpg",
+          "common": "http://lain.bgm.tv/pic/cover/c/1c/b4/390200_Z9jPp.jpg",
+          "medium": "http://lain.bgm.tv/pic/cover/m/1c/b4/390200_Z9jPp.jpg"
+        },
+        "rating": {
+          "score": 3.6,
+          "total": 8
+        }
+      },
+      {
+        "id": 418229,
+        "name": "魔法少女育成計画 restart",
+        "name_cn": "魔法少女育成计划 restart",
+        "images": {
+          "large": "http://lain.bgm.tv/pic/cover/l/52/fe/418229_gcFij.jpg",
+          "common": "http://lain.bgm.tv/pic/cover/c/52/fe/418229_gcFij.jpg",
+          "medium": "http://lain.bgm.tv/pic/cover/m/52/fe/418229_gcFij.jpg"
+        },
+        "rating": {
+          "score": 6.3,
+          "total": 130
+        }
+      }
+    ]
+  },
+  {
+    "weekday": {
+      "en": "Tue",
+      "cn": "星期二",
+      "ja": "火耀日",
+      "id": 2
+    },
+    "items": [
+      {
+        "id": 505550,
+        "name": "Dark Machine The Animation",
+        "name_cn": "暗机 DARK MACHINE",
+        "images": {
+          "large": "http://lain.bgm.tv/pic/cover/l/84/86/505550_OLQmz.jpg",
+          "common": "http://lain.bgm.tv/pic/cover/c/84/86/505550_OLQmz.jpg",
+          "medium": "http://lain.bgm.tv/pic/cover/m/84/86/505550_OLQmz.jpg"
+        },
+        "rating": {
+          "score": 5.4,
+          "total": 106
+        }
+      },
+      {
+        "id": 513878,
+        "name": "Cyberpunk: Edgerunners 2",
+        "name_cn": "赛博朋克：边缘行者 2",
+        "images": {
+          "large": "http://lain.bgm.tv/pic/cover/l/db/94/513878_5f77g.jpg",
+          "common": "http://lain.bgm.tv/pic/cover/c/db/94/513878_5f77g.jpg",
+          "medium": "http://lain.bgm.tv/pic/cover/m/db/94/513878_5f77g.jpg"
+        },
+        "rating": {
+          "score": 5.6,
+          "total": 3510
+        }
+      }
+    ]
+  }
+]

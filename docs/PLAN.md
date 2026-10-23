@@ -13,22 +13,30 @@
 - [ ] 四个并行包：upstream、cms+filter、cache+health、proxy+m3u8
 - [ ] `go test ./...` 全绿、`make build`、可启动
 
-### M1 搜索核心（本轮重点）
+### M1 搜索核心 ✅
 - [x] 搜索聚合：并发、分页、单源死线、硬截止
 - [x] 流式 NDJSON + 软截止 `partial_done`
+- [x] fast 模式：按健康度选最快 8 源（`SEARCH_FAST_SOURCES`）
 - [x] 搜索级缓存 + 源级缓存 + 失败负缓存
-- [x] 服务端源健康/熔断接入搜索
-- [ ] 真实 19 源端到端验证（首源 / partial / done / 缓存命中）
-- [ ] 基准：对比 LibreTV 同关键词（P50 首源、P95 done）
-- [ ] 单元测试：fake upstream/cache/health
+- [x] 服务端源健康/熔断接入搜索 + 启动预热
+- [x] 真实 18 源端到端验证（VPS 首源 121–427 ms；fast done 0.2–1.7 s）
+- [x] 基准：对比 LibreTV（见 [BENCHMARKS.md](BENCHMARKS.md)）
+- [x] 单元测试：fake upstream/cache/health + 集成测试
 
-### M2 详情与代理
+### M2 详情与代理 ✅
 - [x] 详情：列表接口 → HTML 兜底 + 缓存
-- [ ] 详情预取 / 预热（播放起播提速）
 - [x] 代理：流式、Range、m3u8 重写、匿名图片白名单
-- [ ] 代理测试与真实源验证（豆瓣图 / 某个 m3u8）
+- [x] 代理测试 + 本机/VPS 真实源验证（图片 / JSON / m3u8）
+- [ ] 详情预取 / 首分片预取（播放起播进一步提速，后续）
 
-### M3 画质
+### M2.5 客户端数据（Fladder 集成）✅
+- [x] 详情：多线路 + 原始集名 + 稳定分集 ID（`l<线路>e<集>`）
+- [x] 观看进度 `PUT /api/me/progress`、历史 `GET/DELETE /api/me/history`
+- [x] 收藏 `GET/PUT/DELETE /api/me/favorites`
+- [x] 独立 bbolt 持久化（userdata.db），默认用户；不放进缓存
+- [ ] 多用户账号体系（后续）
+
+### M3 画质（进行中）
 - [ ] m3u8 master 解析（RESOLUTION / BANDWIDTH）
 - [ ] 媒体列表 → 首分片前缀（MP4 moov / TS SPS）；AES-128 解密
 - [ ] `POST /api/quality`（JSON + NDJSON 流）

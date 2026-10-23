@@ -1,0 +1,6 @@
+{
+  "name": "老订阅",
+  "sources": [
+    { "name": "源A", "url": "https://vod.example.com/api.php/provide/vod/" }
+  ]
+}

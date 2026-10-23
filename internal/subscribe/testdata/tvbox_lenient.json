@@ -1,0 +1,8 @@
+{
+  // 站点列表（共享配置常见注释，TVBOX 客户端用 fastjson 容忍）
+  "sites": [
+    { "name": "A", "type": 1, "api": "https://a.example.com/api.php/provide/vod" }, // 行内注释
+  ],
+  /* 直播源 */
+  "lives": [],
+}

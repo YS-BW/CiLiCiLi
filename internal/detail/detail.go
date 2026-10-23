@@ -109,7 +109,7 @@ func (r *Resolver) Resolve(ctx context.Context, id string, src model.SourceConfi
 		return nil, err
 	}
 	d, _ := v.(*model.VideoDetail)
-	return d, nil
+	return normalize(d), nil
 }
 
 func (r *Resolver) fetch(ctx context.Context, id string, src model.SourceConfig) (*model.VideoDetail, error) {
@@ -204,7 +204,7 @@ func validID(id string) bool {
 func cacheKey(id string, src model.SourceConfig) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\n%s\n%s", strings.TrimRight(src.URL, "/"), strings.TrimRight(src.Detail, "/"), id)
-	return "detail:" + hex.EncodeToString(h.Sum(nil))[:32]
+	return "detail:v3:" + hex.EncodeToString(h.Sum(nil))[:32]
 }
 
 func decode(raw []byte) (*model.VideoDetail, error) {
@@ -215,5 +215,31 @@ func decode(raw []byte) (*model.VideoDetail, error) {
 	if d.Episodes == nil {
 		d.Episodes = []string{}
 	}
-	return &d, nil
+	return normalize(&d), nil
+}
+
+// normalize 修正缓存/上游数据里的派生字段：PlayLines 非空、preferred 只标第一条 m3u8 线路。
+// 旧缓存没有 preferred 字段，读出来时在这里补齐。
+func normalize(d *model.VideoDetail) *model.VideoDetail {
+	if d == nil {
+		return nil
+	}
+	if d.Episodes == nil {
+		d.Episodes = []string{}
+	}
+	if d.PlayLines == nil {
+		d.PlayLines = []model.PlayLine{}
+	}
+	for i := range d.PlayLines {
+		d.PlayLines[i].Preferred = false
+	}
+	for i := range d.PlayLines {
+		for _, ep := range d.PlayLines[i].Episodes {
+			if strings.Contains(strings.ToLower(ep.URL), ".m3u8") {
+				d.PlayLines[i].Preferred = true
+				return d
+			}
+		}
+	}
+	return d
 }

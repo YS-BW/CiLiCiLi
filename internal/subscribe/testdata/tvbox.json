@@ -1,0 +1,19 @@
+{
+  "name": "某大佬的接口",
+  "sites": [
+    { "key": "cms1", "name": "正版源", "type": 1, "api": "https://ok.example.com/api.php/provide/vod", "searchable": 1 },
+    { "key": "cms2", "name": "省略类型", "api": "https://a.example.com/api.php/provide/vod/" },
+    { "key": "spider1", "name": "蜘蛛A", "type": 3, "api": "csp_AppYs" },
+    { "key": "jar", "name": "蜘蛛B", "api": "https://cdn.example.com/spider.jar" },
+    { "key": "js", "name": "本地JS", "type": 1, "api": "./json/heimuer.js" },
+    { "key": "xml", "name": "XML站", "type": 0, "api": "https://xml.example.com/api.php/provide/vod/at/xml" },
+    { "key": "ext", "name": "外链站", "type": 4, "api": "https://api.example.com/v1/list" },
+    { "key": "nosearch", "name": "不可搜索", "type": 1, "api": "https://ns.example.com/api.php/provide/vod", "searchable": 0 }
+  ],
+  "lives": [
+    { "name": "直播A", "type": 0, "url": "https://live.example.com/list.m3u", "epg": "https://live.example.com/epg.xml.gz" },
+    { "name": "单仓", "type": 1, "url": "https://live.example.com/all.json" },
+    { "name": "txt列表", "type": 0, "url": "https://live.example.com/tv.txt" },
+    { "name": "坏地址", "type": 0, "url": "ftp://live.example.com/list.m3u" }
+  ]
+}

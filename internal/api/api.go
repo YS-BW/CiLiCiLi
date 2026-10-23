@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 
 	"cilicili/internal/auth"
@@ -12,10 +13,15 @@ import (
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
 	"cilicili/internal/httpx"
+	"cilicili/internal/live"
 	"cilicili/internal/model"
+	"cilicili/internal/quality"
+	"cilicili/internal/recommend"
 	"cilicili/internal/search"
 	"cilicili/internal/source"
+	"cilicili/internal/subscribe"
 	"cilicili/internal/upstream"
+	"cilicili/internal/userdata"
 )
 
 // Deps 是 API 层的依赖。
@@ -30,6 +36,11 @@ type Deps struct {
 	Client    upstream.Doer
 	Proxy     http.Handler
 	LiveProxy http.Handler
+	Quality   *quality.Prober
+	Live      *live.Service
+	Recommend *recommend.Fetcher
+	Subscribe *subscribe.Fetcher
+	UserData  *userdata.Store
 	Version   string
 }
 
@@ -69,9 +80,17 @@ func (a *API) Status(w http.ResponseWriter, r *http.Request) {
 			"search.stream",
 			"search.soft_deadline",
 			"search.server_health",
+			"search.fast_mode",
 			"detail",
+			"detail.playlines",
 			"proxy",
 			"sources",
+			"sources.subscribe",
+			"me.progress",
+			"me.favorites",
+			"quality",
+			"live",
+			"recommend",
 			"auth.bearer",
 		},
 	})
@@ -132,6 +151,30 @@ func (a *API) Sources(w http.ResponseWriter, r *http.Request) {
 		"sources": a.deps.Registry.List(),
 		"health":  a.deps.Registry.Health().Snapshot(now),
 	})
+}
+
+type sourceResetRequest struct {
+	Key string `json:"key"`
+}
+
+// ResetSource 清除单个源的熔断/停用状态（源管理页「一键恢复」）。
+func (a *API) ResetSource(w http.ResponseWriter, r *http.Request) {
+	var body sourceResetRequest
+	if err := httpx.ReadJSON(r, &body); err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	key := strings.TrimSpace(body.Key)
+	if key == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "缺少 key")
+		return
+	}
+	if _, ok := a.deps.Registry.Get(key); !ok {
+		httpx.WriteError(w, http.StatusNotFound, "源不存在")
+		return
+	}
+	a.deps.Registry.Health().Reset(key)
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 
 // Metrics 返回运行指标（轻量 JSON；后续可替换为 Prometheus）。

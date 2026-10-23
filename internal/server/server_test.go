@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"cilicili/internal/server"
 	"cilicili/internal/source"
 	"cilicili/internal/upstream"
+	"cilicili/internal/userdata"
 )
 
 type fakeDoer struct {
@@ -63,7 +65,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	doer := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
 		switch {
 		case strings.Contains(rawURL, "ac=videolist&ids="):
-			return body(200, "application/json", `{"code":1,"list":[{"vod_id":"1","vod_name":"庆余年","vod_play_url":"第1集$https://cdn.test/1.m3u8#第2集$https://cdn.test/2.m3u8"}]}`), nil
+			return body(200, "application/json", `{"code":1,"list":[{"vod_id":"1","vod_name":"庆余年","vod_play_from":"lineA$$$lineB","vod_play_url":"第1集$https://cdn.test/1.m3u8#第2集$https://cdn.test/2.m3u8$$$正片$https://cdn2.test/full.mp4"}]}`), nil
 		case strings.Contains(rawURL, "ac=videolist&wd="):
 			return body(200, "application/json", `{"code":1,"pagecount":"1","list":[{"vod_id":"1","vod_name":"庆余年","vod_pic":"https://img.test/1.jpg","type_name":"剧集"}]}`), nil
 		case strings.HasSuffix(rawURL, ".jpg"):
@@ -116,9 +118,15 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 		AnonymousImageHosts: []string{"img.test"}, HeaderTimeout: time.Second,
 	})
 	liveHandler := proxy.NewLive(proxy.Options{Client: doer, UA: cfg.UserAgent, Auth: authMgr, Logger: log, HeaderTimeout: time.Second})
+	userStore, err := userdata.New(filepath.Join(t.TempDir(), "userdata.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = userStore.Close() })
 	apiHandler := api.New(api.Deps{
 		Cfg: cfg, Log: log, Auth: authMgr, Searcher: searcher, Detail: resolver,
-		Registry: registry, Cache: store, Client: doer, Proxy: proxyHandler, LiveProxy: liveHandler, Version: cfg.Version,
+		Registry: registry, Cache: store, Client: doer, Proxy: proxyHandler, LiveProxy: liveHandler,
+		UserData: userStore, Version: cfg.Version,
 	})
 	h := server.New(server.Deps{API: apiHandler, Cfg: cfg, Log: log, Auth: authMgr})
 	ts := httptest.NewServer(h)
@@ -254,6 +262,18 @@ func TestDetailAndProxy(t *testing.T) {
 	}
 	if len(d.Episodes) != 2 {
 		t.Fatalf("episodes = %v", d.Episodes)
+	}
+	if len(d.PlayLines) != 2 {
+		t.Fatalf("playLines = %+v", d.PlayLines)
+	}
+	if d.PlayLines[0].Name != "lineA" || d.PlayLines[0].Episodes[0].Name != "第1集" {
+		t.Fatalf("line0 = %+v", d.PlayLines[0])
+	}
+	if d.PlayLines[1].Name != "lineB" || d.PlayLines[1].Episodes[0].Name != "正片" {
+		t.Fatalf("line1 = %+v", d.PlayLines[1])
+	}
+	if d.PlayLines[0].Episodes[0].ID != "l1e1" || d.PlayLines[1].Episodes[0].ID != "l2e1" {
+		t.Fatalf("episode ids = %q / %q", d.PlayLines[0].Episodes[0].ID, d.PlayLines[1].Episodes[0].ID)
 	}
 
 	// 匿名图片代理放行；非图片未登录 401。

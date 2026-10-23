@@ -12,13 +12,15 @@ LibreTV 后端的 Go 重写版：多源聚合搜索、详情解析、流式代�
 - [x] 两级缓存（内存 LRU + bbolt 持久化，TTL/SWR）
 - [x] 服务端全局源健康 / 熔断 / 负缓存
 - [x] 详情解析（列表接口优先，详情页 HTML 兜底）
+- [x] 结构化播放列表：多线路 + 原始集名 + 与 URL 解耦的分集 ID
+- [x] 观看进度 / 观看历史 / 收藏（独立持久化，默认用户）
 - [x] SSRF 防护（DNS 固定、逐跳重定向复检）
 - [x] Bearer token + Web cookie 双鉴权
 - [x] 流式代理（图片/m3u8/分片/直播）+ m3u8 重写
-- [ ] 画质探测（m3u8 / 分片 SPS / MP4 moov）
-- [ ] 直播（M3U/EPG/测活/长连接）
-- [ ] 首页推荐（豆瓣 / Bangumi / 榜单）
-- [ ] 源订阅 / 发布
+- [ ] 画质探测（m3u8 / 分片 SPS / MP4 moov）— 进行中
+- [ ] 直播（M3U/EPG/测活/长连接）— 进行中
+- [ ] 首页推荐（豆瓣 / Bangumi / 榜单）— 进行中
+- [ ] 源订阅 / 发布 — 进行中
 - [ ] Web 前端（YouTube 风格）
 - [ ] 原生 App（Web 稳定后）
 
@@ -64,6 +66,7 @@ curl -N -b /tmp/c.txt -H 'Content-Type: application/json' \
 | `LISTEN` | `:8080` | 监听地址 |
 | `DATA_DIR` | `./data` | 数据目录 |
 | `CACHE_DB` | `$DATA_DIR/cache.db` | 持久缓存文件 |
+| `USER_DB` | `$DATA_DIR/userdata.db` | 观看进度/收藏（独立于缓存） |
 | `SOURCES_FILE` | 空 | 源配置文件（JSON）；与 `DEFAULT_SOURCES` 二选一 |
 | `DEFAULT_SOURCES` | 空 | 点播源 JSON 数组（LibreTV 兼容） |
 | `DEFAULT_LIVE_SOURCES` | 空 | 直播源 JSON 数组 |
@@ -124,7 +127,8 @@ configs/            源配置
 
 - [API 契约](docs/API.md)
 - [实施计划](docs/PLAN.md)
-- [重写评估（实测数据）](docs/backend-rewrite-assessment.md)
+- [重写评估（LibreTV 基线）](docs/backend-rewrite-assessment.md)
+- [Go 版性能实测](docs/BENCHMARKS.md)
 
 ## 合规
 

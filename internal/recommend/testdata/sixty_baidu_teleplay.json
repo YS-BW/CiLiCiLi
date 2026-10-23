@@ -1,0 +1,20 @@
+{
+  "code": 200,
+  "message": "获取成功。",
+  "data": [
+    {
+      "rank": 1,
+      "title": "九门",
+      "score": "95471",
+      "score_desc": "9.55w",
+      "cover": "https://b.bdstatic.com/searchbox/file/cmsuploader/20260806/1786001211803186.jpg"
+    },
+    {
+      "rank": 2,
+      "title": "非份之罪",
+      "score": "93247",
+      "score_desc": "9.32w",
+      "cover": "https://b.bdstatic.com/searchbox/file/cmsuploader/20260806/1786001351723838.jpg"
+    }
+  ]
+}
