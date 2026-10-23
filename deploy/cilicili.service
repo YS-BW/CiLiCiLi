@@ -1,0 +1,26 @@
+[Unit]
+Description=cilicili core API
+Documentation=https://github.com/LibreSpark/LibreTV
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cilicili
+Group=cilicili
+WorkingDirectory=/var/lib/cilicili
+EnvironmentFile=/etc/cilicili/env
+ExecStart=/usr/local/bin/cilicili
+Restart=always
+RestartSec=2s
+LimitNOFILE=65535
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cilicili
+# 只监听本机，由 nginx 对外提供 TLS
+# LISTEN=127.0.0.1:8080 建议写在 /etc/cilicili/env
+
+[Install]
+WantedBy=multi-user.target

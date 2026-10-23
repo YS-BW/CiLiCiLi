@@ -1,0 +1,129 @@
+{
+ "version": "2.19.2",
+ "status_p50_ms": 1.4,
+ "status_min_ms": 1.1,
+ "single_source": [
+  {
+   "wd": "让子弹飞",
+   "sources": 1,
+   "first_ms": 717.2,
+   "done_ms": 717.2,
+   "total_ms": 717.3,
+   "server_ms_median": 716,
+   "server_ms_max": 716,
+   "events": 1
+  },
+  {
+   "wd": "霸王别姬",
+   "sources": 1,
+   "first_ms": 625.7,
+   "done_ms": 625.8,
+   "total_ms": 625.8,
+   "server_ms_median": 621,
+   "server_ms_max": 621,
+   "events": 1
+  },
+  {
+   "wd": "无间道",
+   "sources": 1,
+   "first_ms": 843.8,
+   "done_ms": 843.9,
+   "total_ms": 843.9,
+   "server_ms_median": 838,
+   "server_ms_max": 838,
+   "events": 1
+  },
+  {
+   "wd": "千与千寻",
+   "sources": 1,
+   "first_ms": 615.7,
+   "done_ms": 615.8,
+   "total_ms": 615.8,
+   "server_ms_median": 611,
+   "server_ms_max": 611,
+   "events": 1
+  },
+  {
+   "wd": "大话西游",
+   "sources": 1,
+   "first_ms": 891.1,
+   "done_ms": 891.2,
+   "total_ms": 891.2,
+   "server_ms_median": 887,
+   "server_ms_max": 887,
+   "events": 1
+  }
+ ],
+ "stream_all": [
+  {
+   "wd": "繁花",
+   "sources": 19,
+   "first_ms": 925.7,
+   "done_ms": 8027.8,
+   "total_ms": 8028.9,
+   "server_ms_median": 1560,
+   "server_ms_max": 8013,
+   "events": 19
+  },
+  {
+   "wd": "漫长的季节",
+   "sources": 19,
+   "first_ms": 1956.6,
+   "done_ms": 5297.7,
+   "total_ms": 5297.8,
+   "server_ms_median": 2300,
+   "server_ms_max": 5291,
+   "events": 19
+  },
+  {
+   "wd": "隐入尘烟",
+   "sources": 19,
+   "first_ms": 315.4,
+   "done_ms": 3420.4,
+   "total_ms": 3420.5,
+   "server_ms_median": 654,
+   "server_ms_max": 3413,
+   "events": 19
+  }
+ ],
+ "json_all": [
+  {
+   "wd": "第二十条",
+   "total_ms": 3054.9,
+   "count": 67,
+   "failures": 0
+  },
+  {
+   "wd": "热辣滚烫",
+   "total_ms": 3113.5,
+   "count": 155,
+   "failures": 0
+  },
+  {
+   "wd": "飞驰人生2",
+   "total_ms": 4282.2,
+   "count": 26,
+   "failures": 0
+  }
+ ],
+ "cached_repeat": [
+  {
+   "wd": "繁花",
+   "total_ms": 8.1,
+   "count": 373,
+   "failures": 1
+  },
+  {
+   "wd": "繁花",
+   "total_ms": 5.4,
+   "count": 373,
+   "failures": 1
+  },
+  {
+   "wd": "繁花",
+   "total_ms": 5.4,
+   "count": 373,
+   "failures": 1
+  }
+ ]
+}

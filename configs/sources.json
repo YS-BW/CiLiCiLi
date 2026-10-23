@@ -1,0 +1,106 @@
+{
+  "name": "CiLiCiLi 点播源（2026-10-23 实测，剔除成人 ckzy）",
+  "version": 1,
+  "sources": [
+    {
+      "key": "bfzy",
+      "name": "暴风资源",
+      "url": "https://bfzyapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "ffzy_cj",
+      "name": "非凡资源·cj",
+      "url": "http://cj.ffzyapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "hongniu",
+      "name": "红牛资源",
+      "url": "https://www.hongniuzy2.com/api.php/provide/vod"
+    },
+    {
+      "key": "guangsu",
+      "name": "光速资源",
+      "url": "https://api.guangsuapi.com/api.php/provide/vod/from/gsm3u8"
+    },
+    {
+      "key": "lzi",
+      "name": "量子资源",
+      "url": "https://cj.lziapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "ikun",
+      "name": "ikun资源",
+      "url": "https://ikunzyapi.com/api.php/provide/vod/from/ikm3u8/at/json"
+    },
+    {
+      "key": "bdzy",
+      "name": "百度资源",
+      "url": "https://api.apibdzy.com/api.php/provide/vod"
+    },
+    {
+      "key": "ffzy5",
+      "name": "非凡资源·ffzy5",
+      "url": "http://ffzy5.tv/api.php/provide/vod"
+    },
+    {
+      "key": "rycj",
+      "name": "如意资源",
+      "url": "https://cj.rycjapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "ffzy1",
+      "name": "非凡资源·ffzy1",
+      "url": "http://ffzy1.tv/api.php/provide/vod"
+    },
+    {
+      "key": "huya",
+      "name": "虎牙采集",
+      "url": "https://www.huyaapi.com/api.php/provide/vod/from/hym3u8"
+    },
+    {
+      "key": "hhzy",
+      "name": "火狐采集",
+      "url": "https://hhzyapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "360zy",
+      "name": "360采集",
+      "url": "https://360zy.com/api.php/provide/vod"
+    },
+    {
+      "key": "dyttzy",
+      "name": "影视电影天堂源",
+      "url": "http://caiji.dyttzyapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "ffzy_tv",
+      "name": "影视非凡直连源",
+      "url": "http://ffzy.tv/api.php/provide/vod"
+    },
+    {
+      "key": "uku",
+      "name": "影视尤酷直连源",
+      "url": "https://api.ukuapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "jszy",
+      "name": "影视极速直连源",
+      "url": "https://jszyapi.com/api.php/provide/vod"
+    },
+    {
+      "key": "jianan",
+      "name": "影视建安源",
+      "url": "http://154.219.117.232:9981/jacloudapi.php/provide/vod"
+    }
+  ],
+  "liveSources": [
+    {
+      "name": "IPTV-org 中文",
+      "url": "https://iptv-org.github.io/iptv/languages/zho.m3u"
+    },
+    {
+      "name": "IPTV-org 中国",
+      "url": "https://iptv-org.github.io/iptv/countries/cn.m3u"
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+[
+ {
+  "keyword": "庆余年",
+  "batch_wall_ms": 5315.5,
+  "ok": 15,
+  "fastest_ms": 574.5,
+  "median_ms": 2142.9,
+  "slowest_ms": 5311.6,
+  "sources": {
+   "暴风资源": {
+    "ms": 3200.5,
+    "status": 200,
+    "size": 73976
+   },
+   "非凡资源·cj": {
+    "ms": 2527.1,
+    "status": 200,
+    "size": 87361
+   },
+   "红牛资源": {
+    "ms": 5311.6,
+    "status": 200,
+    "size": 31349
+   },
+   "光速资源": {
+    "ms": 1551.1,
+    "status": 200,
+    "size": 25162
+   },
+   "量子资源": {
+    "ms": 4542.5,
+    "status": 200,
+    "size": 24855
+   },
+   "ikun资源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "百度资源": {
+    "ms": 2191.2,
+    "status": 200,
+    "size": 10627
+   },
+   "ckzy资源": {
+    "ms": 2044.7,
+    "status": 200,
+    "size": 89
+   },
+   "非凡资源·ffzy5": {
+    "ms": 969.6,
+    "status": 200,
+    "size": 87361
+   },
+   "如意资源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "非凡资源·ffzy1": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "虎牙采集": {
+    "ms": 2031.0,
+    "status": 200,
+    "size": 25066
+   },
+   "火狐采集": {
+    "ms": 2515.6,
+    "status": 200,
+    "size": 31305
+   },
+   "360采集": {
+    "ms": 574.5,
+    "status": 200,
+    "size": 18386
+   },
+   "影视电影天堂源": {
+    "ms": 2142.9,
+    "status": 200,
+    "size": 77931
+   },
+   "影视非凡直连源": {
+    "ms": 1363.3,
+    "status": 200,
+    "size": 87361
+   },
+   "影视尤酷直连源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "影视极速直连源": {
+    "ms": 2476.7,
+    "status": 200,
+    "size": 31214
+   },
+   "影视建安源": {
+    "ms": 1888.1,
+    "status": 200,
+    "size": 881369
+   }
+  }
+ },
+ {
+  "keyword": "流浪地球",
+  "batch_wall_ms": 15022.0,
+  "ok": 15,
+  "fastest_ms": 423.9,
+  "median_ms": 1555.4,
+  "slowest_ms": 4044.8,
+  "sources": {
+   "暴风资源": {
+    "ms": 1555.4,
+    "status": 200,
+    "size": 29239
+   },
+   "非凡资源·cj": {
+    "ms": 582.4,
+    "status": 200,
+    "size": 19342
+   },
+   "红牛资源": {
+    "ms": 1464.2,
+    "status": 200,
+    "size": 13456
+   },
+   "光速资源": {
+    "ms": 1651.1,
+    "status": 200,
+    "size": 13151
+   },
+   "量子资源": {
+    "ms": 2334.3,
+    "status": 200,
+    "size": 26577
+   },
+   "ikun资源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "百度资源": {
+    "ms": 2036.1,
+    "status": 200,
+    "size": 5327
+   },
+   "ckzy资源": {
+    "ms": 2525.5,
+    "status": 200,
+    "size": 89
+   },
+   "非凡资源·ffzy5": {
+    "ms": 1730.3,
+    "status": 200,
+    "size": 19342
+   },
+   "如意资源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "非凡资源·ffzy1": {
+    "ms": null,
+    "status": "OSError",
+    "size": 0
+   },
+   "虎牙采集": {
+    "ms": 1128.2,
+    "status": 200,
+    "size": 12947
+   },
+   "火狐采集": {
+    "ms": 1118.2,
+    "status": 200,
+    "size": 13401
+   },
+   "360采集": {
+    "ms": 423.9,
+    "status": 200,
+    "size": 10280
+   },
+   "影视电影天堂源": {
+    "ms": 1329.3,
+    "status": 200,
+    "size": 20177
+   },
+   "影视非凡直连源": {
+    "ms": 695.1,
+    "status": 200,
+    "size": 19342
+   },
+   "影视尤酷直连源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "影视极速直连源": {
+    "ms": 4044.8,
+    "status": 200,
+    "size": 13529
+   },
+   "影视建安源": {
+    "ms": 1957.3,
+    "status": 200,
+    "size": 881369
+   }
+  }
+ },
+ {
+  "keyword": "狂飙",
+  "batch_wall_ms": 3721.4,
+  "ok": 15,
+  "fastest_ms": 512.0,
+  "median_ms": 1437.2,
+  "slowest_ms": 3719.7,
+  "sources": {
+   "暴风资源": {
+    "ms": 1102.5,
+    "status": 200,
+    "size": 91881
+   },
+   "非凡资源·cj": {
+    "ms": 3719.7,
+    "status": 200,
+    "size": 142719
+   },
+   "红牛资源": {
+    "ms": 1437.2,
+    "status": 200,
+    "size": 39524
+   },
+   "光速资源": {
+    "ms": 2612.4,
+    "status": 200,
+    "size": 37459
+   },
+   "量子资源": {
+    "ms": 2245.0,
+    "status": 200,
+    "size": 168000
+   },
+   "ikun资源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "百度资源": {
+    "ms": 1387.9,
+    "status": 200,
+    "size": 27819
+   },
+   "ckzy资源": {
+    "ms": 906.4,
+    "status": 200,
+    "size": 89
+   },
+   "非凡资源·ffzy5": {
+    "ms": 1440.5,
+    "status": 200,
+    "size": 142719
+   },
+   "如意资源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "非凡资源·ffzy1": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "虎牙采集": {
+    "ms": 1203.5,
+    "status": 200,
+    "size": 37611
+   },
+   "火狐采集": {
+    "ms": 884.2,
+    "status": 200,
+    "size": 39603
+   },
+   "360采集": {
+    "ms": 512.0,
+    "status": 200,
+    "size": 34292
+   },
+   "影视电影天堂源": {
+    "ms": 1477.8,
+    "status": 200,
+    "size": 95116
+   },
+   "影视非凡直连源": {
+    "ms": 1002.4,
+    "status": 200,
+    "size": 142719
+   },
+   "影视尤酷直连源": {
+    "ms": null,
+    "status": "ConnectionResetError",
+    "size": 0
+   },
+   "影视极速直连源": {
+    "ms": 3284.1,
+    "status": 200,
+    "size": 40748
+   },
+   "影视建安源": {
+    "ms": 2015.5,
+    "status": 200,
+    "size": 881369
+   }
+  }
+ }
+]

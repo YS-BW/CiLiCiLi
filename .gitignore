@@ -1,0 +1,25 @@
+# 运行数据与构建产物
+/data/
+/bin/
+*.db
+*.db.lock
+*.db.tmp
+coverage.out
+/tmp/
+
+# 本地环境与 agent 工具状态
+.env
+.env.local
+.dsh/
+.agents/
+
+# 编辑器/系统
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Web 前端构建产物（后续加入）
+/web/node_modules/
+/web/dist/
+/web/.next/

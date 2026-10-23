@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>庆余年第二季 - 非凡影视</title>
+</head>
+<body>
+<!--
+  手工构造的 MacCMS 详情页片段，播放列表结构参照非凡影视（ffzy）真实详情页：
+  同一个 m3u8 地址会在 input[value]、font 文本、报错 onclick 里各出现一次，解析必须去重；
+  真实模板没有 h1/sketch，这里按 MacCMS 常见详情页模板补齐，用于覆盖标题/简介提取。
+-->
+<div class="detail">
+  <div class="detail-left">
+    <h1 class="detail-title">庆余年 第二季 &amp; 番外</h1>
+    <div class="sketch">
+      &nbsp;&nbsp;该剧改编自猫腻同名畅销小说，承接上季，<br/>
+      范闲（张若昀 饰）率领使团回归途中。<p>庆帝遭遇三连刺杀。</p>
+    </div>
+  </div>
+  <div class="playlist wbox ffm3u8">
+    <li><input name="copy_ffm3u8[]" type="checkbox" value="第01集$https://vip.ffzy-online2.com/20250420/49522_e3154fc9/index.m3u8" checked>&nbsp;&nbsp;<a title="第01集" href="https://vip.ffzy-online2.com/20250420/49522_e3154fc9/index.m3u8" target="_blank"><font color="red">第01集$https://vip.ffzy-online2.com/20250420/49522_e3154fc9/index.m3u8</font></a><a href="javascript:;" class="bugs" onclick="MAC.Gbook.Report('编号【79613】名称【第01集】不能观看请检查修复，页面地址：第01集$https://vip.ffzy-online2.com/20250420/49522_e3154fc9/index.m3u8')">我要报错</a></li>
+    <li><input name="copy_ffm3u8[]" type="checkbox" value="第02集$https://vip.ffzy-online2.com/20250422/49553_6e2f66ca/index.m3u8" checked>&nbsp;&nbsp;<a title="第02集" href="https://vip.ffzy-online2.com/20250422/49553_6e2f66ca/index.m3u8" target="_blank"><font color="red">第02集$https://vip.ffzy-online2.com/20250422/49553_6e2f66ca/index.m3u8</font></a><a href="javascript:;" class="bugs" onclick="MAC.Gbook.Report('编号【79613】名称【第02集】不能观看请检查修复，页面地址：第02集$https://vip.ffzy-online2.com/20250422/49553_6e2f66ca/index.m3u8')">我要报错</a></li>
+    <li><input name="copy_ffm3u8[]" type="checkbox" value="第03集$https://vip.ffzy-online2.com/20250423/49563_ba2fec29/index.m3u8" checked>&nbsp;&nbsp;<a title="第03集" href="https://vip.ffzy-online2.com/20250423/49563_ba2fec29/index.m3u8" target="_blank"><font color="red">第03集$https://vip.ffzy-online2.com/20250423/49563_ba2fec29/index.m3u8</font></a></li>
+    <li><input name="copy_ffm3u8[]" type="checkbox" value="第04集$https://vip.ffzy-online2.com/share/137b81b130a9003977a2f513032a738a">&nbsp;&nbsp;<font color="red">第04集中转页，不是 m3u8 直链</font></li>
+  </div>
+  <!-- 没有 $ 前缀的普通 m3u8 链接不是剧集地址，不应被提取 -->
+  <a class="external" href="https://example.com/trailer/index.m3u8">预告</a>
+</div>
+</body>
+</html>
