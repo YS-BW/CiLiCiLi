@@ -16,6 +16,7 @@ LibreTV 后端的 Go 重写版：多源聚合搜索、详情解析、流式代�
 - [x] 观看进度 / 观看历史 / 收藏（独立持久化，默认用户）
 - [x] 媒体聚合（一张影片一张卡）+ 本地封面缓存
 - [x] 媒体聚合卡片 + 本地封面缓存 + TMDB 元数据候选（配置 key 后启用）
+- [x] 源管理（SQLite 持久化、增删改/启停/排序、热生效）+ 源订阅（保存/刷新/应用）
 - [x] SSRF 防护（DNS 固定、逐跳重定向复检）
 - [x] Bearer token + Web cookie 双鉴权
 - [x] 流式代理（图片/m3u8/分片/直播）+ m3u8 重写
@@ -82,6 +83,7 @@ make web-serve
 | `DATA_DIR` | `./data` | 数据目录 |
 | `CACHE_DB` | `$DATA_DIR/cache.db` | 持久缓存文件 |
 | `USER_DB` | `$DATA_DIR/userdata.db` | 观看进度/收藏（独立于缓存） |
+| `SOURCES_DB` | `$DATA_DIR/sources.db` | 源配置/订阅（SQLite；首次从 SOURCES_FILE 导入） |
 | `MEDIA_DB` | `$DATA_DIR/media.db` | 媒体库（SQLite + WAL） |
 | `MEDIA_COVER_DIR` | `$DATA_DIR/covers` | 本地封面文件目录 |
 | `MEDIA_ENABLED` | `1` | 关闭后媒体聚合/刮削接口返回 501 |

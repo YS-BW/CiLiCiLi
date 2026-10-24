@@ -198,13 +198,21 @@ Base URL：`/api`。除特别说明外：
 
 ## 4. 源管理
 
+需要登录。源配置持久化在 `SOURCES_DB`（默认 `$DATA_DIR/sources.db`，SQLite）：
+
+- 首次启动时若库为空，从 `SOURCES_FILE` 导入一次，之后以库为准；
+- 增删改/排序/启停**立即热替换** Registry，不需要重启；禁用源不参与搜索；
+- `key` 由服务端生成（`src_<8hex>`，基于 URL），也可在创建时指定。
+
 ### GET /api/sources
 
-需要登录。返回注册源与服务端健康快照：
+返回全部源（含禁用）与服务端健康快照：
 
 ```json
 {
-  "sources":[{"key":"env_0","name":"暴风资源","url":"https://..."}],
+  "sources":[
+    {"key":"env_0","name":"暴风资源","url":"https://...","enabled":true,"sortOrder":0,"createdAt":1792827000000,"updatedAt":1792827000000}
+  ],
   "health":[
     {"key":"env_0","ewmaMs":812,"failStreak":0,"level":0,"openUntil":0,"disabled":false,"successes":12,"failures":0}
   ]
@@ -212,6 +220,34 @@ Base URL：`/api`。除特别说明外：
 ```
 
 健康语义：连续 2 次失败 → 30 分钟熔断；再犯 → 24 小时；再犯 → 长期停用（`disabled:true`，需管理接口重置）。熔断中的源不参与搜索，且不等待。
+
+### POST /api/sources
+
+```json
+{"name":"新源","url":"https://example.com/api.php/provide/vod","key":"可选","detail":"可选","isAdult":false,"enabled":true}
+```
+
+→ `{"source":{...}}`。`400` 参数/地址非法；`409` key 或地址重复。
+
+### PUT /api/sources/{key}
+
+```json
+{"name":"改名","url":"https://...","enabled":false}
+```
+
+字段均可选，只更新传入项；→ `{"source":{...}}`。`404` 源不存在。
+
+### DELETE /api/sources/{key}
+
+→ `{"success":true}`；`404` 源不存在。
+
+### POST /api/sources/reorder
+
+```json
+{"keys":["env_0","src_ab12cd34"]}
+```
+
+按给定顺序重排，未列出的源保持原顺序排在后面；→ `{"sources":[...]}`。
 
 ### POST /api/sources/reset
 
@@ -222,8 +258,6 @@ Base URL：`/api`。除特别说明外：
 ```
 
 ### POST /api/sources/test
-
-需要登录。
 
 ```json
 {"url":"https://.../api.php/provide/vod"}
@@ -289,18 +323,63 @@ Base URL：`/api`。除特别说明外：
 
 ## 9. 源订阅
 
-### GET /api/source-list?url=<encoded>
+订阅地址持久化在 `SOURCES_DB` 的 `subscriptions` 表；支持 LibreTV-SourceList JSON、TVBox 配置、接口目录。
 
-需要登录。拉取远程订阅，支持 LibreTV-SourceList / TVBOX / 接口目录；返回：
+### GET /api/subscriptions
+
+→ `{"items":[{"id":1,"name":"订阅名","url":"https://...","enabled":true,"lastFetchAt":...,"lastStatus":"ok","lastError":"","lastCount":12}]}`
+
+### POST /api/subscriptions
+
+```json
+{"name":"可选","url":"https://.../sources.json"}
+```
+
+→ `{"subscription":{...}}`。`409` 地址重复。
+
+### PUT /api/subscriptions/{id}
+
+```json
+{"name":"改名","url":"https://...","enabled":false}
+```
+
+字段均可选。
+
+### DELETE /api/subscriptions/{id}
+
+→ `{"success":true}`。
+
+### POST /api/subscriptions/{id}/refresh
+
+拉取并解析订阅，**只返回预览不写入源**，同时记录 `lastStatus/lastCount`：
 
 ```json
 {
-  "name": "订阅名",
-  "sources": [{"key":"sub_ab12cd34","name":"源名","url":"https://..."}],
-  "liveSources": [{"key":"sub_...","name":"直播","url":"https://.../list.m3u","epg":"..."}],
-  "stats": {"format":"libretv","skipped":0,"truncated":0}
+  "subscription":{...},
+  "preview":{
+    "name":"订阅名",
+    "sources":[{"key":"sub_ab12cd34","name":"源名","url":"https://..."}],
+    "liveSources":[...],
+    "stats":{"format":"libretv","skipped":0,"truncated":0}
+  }
 }
 ```
+
+拉取失败返回 `502`，并把订阅标记为 `lastStatus=failed` + `lastError`。
+
+### POST /api/subscriptions/{id}/apply
+
+把订阅里的点播源合并进源列表（按规范化 URL 去重）：
+
+```json
+{"sources":[{"name":"源名","url":"https://..."}]}
+```
+
+`sources` 省略时服务端重新拉取整份订阅。→ `{"added":2,"skipped":1,"items":[...]}`。
+
+### GET /api/source-list?url=<encoded>
+
+无状态预览（不保存订阅）：拉取远程订阅并返回解析结果，结构同 `preview`。仍保留用于临时查看。
 
 ## 10. 观看进度与收藏
 
