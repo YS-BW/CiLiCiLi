@@ -4,6 +4,9 @@ package server
 import (
 	"log/slog"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -23,6 +26,31 @@ type Deps struct {
 }
 
 // New 返回完整的 HTTP handler。
+// spaHandler 托管 Flutter Web 静态文件，未命中的路径回退 index.html（SPA 路由）。
+func spaHandler(root string) http.Handler {
+	files := http.FileServer(http.Dir(root))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r)
+			return
+		}
+		clean := path.Clean("/" + r.URL.Path)
+		full := filepath.Join(root, filepath.FromSlash(clean))
+		if info, err := os.Stat(full); err == nil && !info.IsDir() {
+			switch filepath.Ext(full) {
+			case ".js", ".wasm", ".ttf", ".otf", ".woff2", ".png", ".jpg", ".svg", ".json":
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			default:
+				w.Header().Set("Cache-Control", "no-cache")
+			}
+			files.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeFile(w, r, filepath.Join(root, "index.html"))
+	})
+}
+
 func New(d Deps) http.Handler {
 	mux := http.NewServeMux()
 
@@ -87,6 +115,11 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/live/probe", guard(d.API.LiveProbe))
 	mux.HandleFunc("GET /api/live/stream", d.API.LiveStream)
 	mux.HandleFunc("GET /api/live/stream/{target...}", d.API.LiveStream)
+
+	// 可选：同源托管 Flutter Web（WEB_DIR），容器部署时前后端一个进程。
+	if dir := strings.TrimSpace(d.Cfg.WebDir); dir != "" {
+		mux.Handle("GET /", spaHandler(dir))
+	}
 
 	// 根路径：后续 Web 前端由 nginx 静态托管；这里只给一个服务标识。
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

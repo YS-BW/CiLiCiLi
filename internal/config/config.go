@@ -21,6 +21,7 @@ type Config struct {
 	UserDB           string
 	SourcesDB        string
 	DiscoverSources  []string
+	WebDir           string
 	MediaDB          string
 	MediaCoverDir    string
 	MediaCoverBase   string
@@ -82,6 +83,7 @@ func Load() (*Config, error) {
 		UserDB:           envString("USER_DB", filepath.Join(dataDir, "userdata.db")),
 		SourcesDB:        envString("SOURCES_DB", filepath.Join(dataDir, "sources.db")),
 		DiscoverSources:  envList("DISCOVER_SOURCES"),
+		WebDir:           envString("WEB_DIR", ""),
 		MediaDB:          envString("MEDIA_DB", filepath.Join(dataDir, "media.db")),
 		MediaCoverDir:    envString("MEDIA_COVER_DIR", filepath.Join(dataDir, "covers")),
 		MediaCoverBase:   envString("MEDIA_COVER_BASE", "/api/media"),
