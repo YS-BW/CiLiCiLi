@@ -58,6 +58,16 @@ func TestFromRequest(t *testing.T) {
 	if m.FromRequest(r) {
 		t.Fatal("bad cookie should not verify")
 	}
+
+	// 播放器拿不到自定义请求头，允许 query token（流媒体代理用）。
+	r = httptest.NewRequest(http.MethodGet, "/?token="+token, nil)
+	if !m.FromRequest(r) {
+		t.Fatal("query token should verify")
+	}
+	r = httptest.NewRequest(http.MethodGet, "/?token=bad", nil)
+	if m.FromRequest(r) {
+		t.Fatal("bad query token should not verify")
+	}
 }
 
 func TestCheckPassword(t *testing.T) {

@@ -632,6 +632,33 @@ func TestM3U8RewriteThroughProxy(t *testing.T) {
 	}
 }
 
+func TestM3U8RewriteCarriesQueryToken(t *testing.T) {
+	t.Parallel()
+
+	const (
+		target   = "https://cdn.example.com/live/index.m3u8"
+		finalURL = "https://cdn.example.com/live/index.m3u8"
+	)
+	playlist := "#EXTM3U\nseg1.ts\n#EXT-X-ENDLIST"
+	client := &fakeDoer{fn: func(_ context.Context, _ string, _ upstream.Options) (*upstream.Response, error) {
+		resp := textResponse(finalURL, http.StatusOK, playlist, "application/vnd.apple.mpegurl")
+		resp.FinalURL = finalURL
+		return resp, nil
+	}}
+	r := httptest.NewRequest(http.MethodGet,
+		proxyPathPrefix+"?token=abc123&url="+url.QueryEscape(target), nil)
+	rec := httptest.NewRecorder()
+	New(Options{Client: client}).ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	want := "/api/proxy?token=abc123&url=" + url.QueryEscape("https://cdn.example.com/live/seg1.ts")
+	if !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("分片地址未携带 token：body=%q want=%q", rec.Body.String(), want)
+	}
+}
+
 func TestM3U8DetectionFallsBackToURLAndFinalURL(t *testing.T) {
 	t.Parallel()
 

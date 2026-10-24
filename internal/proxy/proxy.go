@@ -362,6 +362,10 @@ func (h *proxyHandler) servePlaylist(w http.ResponseWriter, r *http.Request, res
 	if h.live {
 		proxyBase = liveURLBase
 	}
+	// 播放器请求 m3u8 时分片地址也要带上鉴权 token，否则分片请求会 401。
+	if tok := strings.TrimSpace(r.URL.Query().Get("token")); tok != "" {
+		proxyBase = proxyBase[:strings.Index(proxyBase, "?url=")] + "?token=" + url.QueryEscape(tok) + "&url="
+	}
 	body := m3u8.Rewrite(string(raw), finalURL, proxyBase)
 
 	w.WriteHeader(status)

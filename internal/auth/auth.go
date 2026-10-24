@@ -105,6 +105,12 @@ func (m *Manager) FromRequest(r *http.Request) bool {
 	if c, err := r.Cookie(SessionCookie); err == nil && m.Verify(c.Value) {
 		return true
 	}
+	// 播放器/流媒体代理拿不到自定义请求头，允许 query 传 token（仅用于 /api/proxy 等流地址）。
+	if q := r.URL.Query(); q.Get("token") != "" {
+		if m.Verify(strings.TrimSpace(q.Get("token"))) {
+			return true
+		}
+	}
 	return false
 }
 
