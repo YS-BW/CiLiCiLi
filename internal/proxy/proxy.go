@@ -39,6 +39,9 @@ const (
 	liveCacheControl    = "no-store, no-transform"
 
 	doubanReferer = "https://movie.douban.com/"
+	// doubanImageMirrorHost 是豆瓣图片的镜像（60s API 提供）。豆瓣 WAF 会对
+	// Go 的 TLS 指纹返回 200 + JS 挑战页，导致封面空白；镜像可作为兜底。
+	doubanImageMirrorHost = "doubanio.viki.moe"
 )
 
 var (
@@ -175,6 +178,22 @@ func (h *proxyHandler) forward(w http.ResponseWriter, r *http.Request, target *u
 		h.writeError(w, http.StatusBadGateway, "代理请求失败")
 		return
 	}
+
+	// 豆瓣图床对部分请求返回 200 + 反爬挑战页（text/html）。此时换镜像再取一次，
+	// 否则浏览器拿到 HTML 无法解码，表现为封面空白。
+	if !h.live && isDoubanImageTarget(target) && !isImageContentType(resp.Header.Get("Content-Type")) {
+		if mirror := doubanImageMirror(target); mirror != nil {
+			_ = resp.Close()
+			if mresp, merr := h.opts.Client.Do(ctx, mirror.String(), h.upstreamOptions(r, mirror)); merr == nil && mresp != nil {
+				h.debug("豆瓣图片走镜像兜底", "url", target.String(), "mirror", mirror.String())
+				resp = mresp
+			} else {
+				h.debug("豆瓣图片镜像兜底失败", "url", target.String(), "err", merr)
+				h.writeError(w, http.StatusBadGateway, "封面获取失败")
+				return
+			}
+		}
+	}
 	defer func() { _ = resp.Close() }()
 
 	finalURL := resp.FinalURL
@@ -306,6 +325,12 @@ func (h *proxyHandler) copyStreamHeaders(w http.ResponseWriter, resp *upstream.R
 		hdr.Set("Cache-Control", imageCacheControl)
 		return
 	}
+	// 非图片/视频（典型是反爬挑战页）不缓存：避免一次失败被浏览器缓存住，
+	// 换线路/镜像后仍显示旧内容。
+	if strings.HasPrefix(strings.ToLower(hdr.Get("Content-Type")), "text/html") {
+		hdr.Set("Cache-Control", "no-store")
+		return
+	}
 	hdr.Set("Cache-Control", defaultCacheControl)
 }
 
@@ -368,6 +393,31 @@ func readLimited(body io.Reader, max int64) ([]byte, error) {
 		return nil, errPlaylistTooLarge
 	}
 	return data, nil
+}
+
+// isDoubanImageTarget 判断是否需要为豆瓣图片准备兜底。
+func isDoubanImageTarget(u *url.URL) bool {
+	if u == nil || !hostMatches(u.Hostname(), []string{"doubanio.com"}) {
+		return false
+	}
+	return strings.HasPrefix(u.Path, "/view/photo/")
+}
+
+// doubanImageMirror 返回等价镜像地址；豆瓣图片路径在镜像上保持一致。
+func doubanImageMirror(u *url.URL) *url.URL {
+	if u == nil {
+		return nil
+	}
+	return &url.URL{
+		Scheme:   "https",
+		Host:     doubanImageMirrorHost,
+		Path:     u.Path,
+		RawQuery: u.RawQuery,
+	}
+}
+
+func isImageContentType(ct string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(ct)), "image/")
 }
 
 // hostMatches 按「等于后缀或为其子域」匹配主机名，大小写不敏感，

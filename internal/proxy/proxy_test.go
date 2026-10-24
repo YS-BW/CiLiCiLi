@@ -921,3 +921,52 @@ func TestClientDisconnectDoesNotWriteJSON(t *testing.T) {
 		t.Fatalf("客户端断开时不应写响应体，got %q", rec.Body.String())
 	}
 }
+
+// 豆瓣图床对 Go TLS 指纹可能返回 200 + 反爬 HTML；代理应换镜像兜底。
+func TestDoubanImageMirrorFallback(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
+		if strings.Contains(rawURL, doubanImageMirrorHost) {
+			return textResponse(rawURL, http.StatusOK, "jpeg-bytes", "image/jpeg"), nil
+		}
+		return textResponse(rawURL, http.StatusOK, "<html>challenge</html>", "text/html"), nil
+	}}
+	rec := httptest.NewRecorder()
+	New(Options{Client: client}).ServeHTTP(rec,
+		proxyRequest(http.MethodGet, "https://img9.doubanio.com/view/photo/s_ratio_poster/public/p1.jpg"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/jpeg" {
+		t.Fatalf("Content-Type = %q", ct)
+	}
+	if rec.Body.String() != "jpeg-bytes" {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+	calls := client.snapshot()
+	if len(calls) != 2 {
+		t.Fatalf("上游调用次数 = %d, want 2", len(calls))
+	}
+	if !strings.Contains(calls[1].url, doubanImageMirrorHost) {
+		t.Fatalf("第二次应请求镜像，got %s", calls[1].url)
+	}
+}
+
+// 正常图片不应触发镜像兜底。
+func TestDoubanImageNoFallbackWhenImage(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
+		return textResponse(rawURL, http.StatusOK, "jpeg-bytes", "image/jpeg"), nil
+	}}
+	rec := httptest.NewRecorder()
+	New(Options{Client: client}).ServeHTTP(rec,
+		proxyRequest(http.MethodGet, "https://img9.doubanio.com/view/photo/s_ratio_poster/public/p1.jpg"))
+	if rec.Code != http.StatusOK || rec.Body.String() != "jpeg-bytes" {
+		t.Fatalf("code=%d body=%q", rec.Code, rec.Body.String())
+	}
+	if got := client.count(); got != 1 {
+		t.Fatalf("上游调用次数 = %d, want 1", got)
+	}
+}
