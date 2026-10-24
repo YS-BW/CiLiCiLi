@@ -19,11 +19,6 @@ coverage.out
 .vscode/
 *.swp
 
-# Web 前端构建产物（后续加入）
-/web/node_modules/
-/web/dist/
-/web/.next/
-
 # Python tooling
 __pycache__/
 

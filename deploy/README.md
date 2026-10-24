@@ -1,89 +1,59 @@
-# 部署（腾讯云 CVM / 任意 Linux）
+# 部署说明（后端）
 
-> 当前线上使用 Docker 单容器部署（API + Web 同进程/同目录），见 [deploy/docker/README.md](docker/README.md) 与 [deploy/nginx/cilicili.conf](nginx/cilicili.conf)。
-> 下面是早期的 systemd 裸机方式，保留作参考。
+后端是单个 Go 二进制，除 `PASSWORD` 外无必须的外部依赖。
 
-
-目标：单二进制 + systemd + nginx，不依赖 Docker（该 VPS 连不上 Docker Hub）。
-
-## 1. 本机交叉编译
+## Docker（推荐）
 
 ```bash
-make linux
-# 产物：bin/cilicili-linux-amd64
-```
-
-## 2. 上传
-
-```bash
-scp bin/cilicili-linux-amd64 tencent-vps:/usr/local/bin/cilicili
-ssh tencent-vps 'chmod 755 /usr/local/bin/cilicili'
-```
-
-## 3. VPS 初始化（一次性）
-
-```bash
-ssh tencent-vps
-useradd --system --home /var/lib/cilicili --shell /usr/sbin/nologin cilicili || true
-install -d -o cilicili -g cilicili -m 750 /var/lib/cilicili
-install -d -m 755 /etc/cilicili
-# 写入环境变量（参考 .env.example）；至少 PASSWORD / LISTEN=127.0.0.1:8080
-cat >/etc/cilicili/env <<'EOF'
-PASSWORD=change-me
-PROXY_SECRET=请替换为 openssl rand -hex 32
-LISTEN=127.0.0.1:8080
-DATA_DIR=/var/lib/cilicili
-SOURCES_FILE=/etc/cilicili/sources.json
-LOG_LEVEL=info
-EOF
-chmod 600 /etc/cilicili/env
-scp configs/sources.json tencent-vps:/etc/cilicili/sources.json  # 从本机执行
-```
-
-## 4. systemd
-
-```bash
-scp deploy/cilicili.service tencent-vps:/etc/systemd/system/
-ssh tencent-vps 'systemctl daemon-reload && systemctl enable --now cilicili'
-ssh tencent-vps 'systemctl status cilicili --no-pager'
+cp .env.example .env        # 改 PASSWORD
+docker compose up -d --build
 curl -s http://127.0.0.1:8080/api/health
 ```
 
-查看日志、重启：
+- 数据默认挂载到 `./data`（可改 `docker-compose.yml` 的 volumes）
+- 镜像内置 `/etc/cilicili/sources.json` 作为首次启动的默认源
+- 国内网络无法拉 `golang` 基础镜像时，用预编译方式：
 
 ```bash
-ssh tencent-vps 'journalctl -u cilicili -f'
-ssh tencent-vps 'systemctl restart cilicili'
+make linux   # 产出 bin/cilicili-linux-amd64
+docker build -f deploy/Dockerfile.prebuilt -t cilicili-backend:latest .
+docker run -d --name cilicili-backend --restart unless-stopped \
+  --env-file .env -p 8080:8080 -v "$PWD/data:/data" cilicili-backend:latest
 ```
 
-## 5. nginx
-
-把 `deploy/nginx-api.conf` 里的 `location /api/` 合并进现有 443 server 块：
-
-```bash
-ssh tencent-vps 'nginx -t && systemctl reload nginx'
-curl -sk https://124.221.121.195/api/health
-```
-
-## 6. 升级
+## 裸机 + systemd
 
 ```bash
 make linux
-scp bin/cilicili-linux-amd64 tencent-vps:/usr/local/bin/cilicili.new
-ssh tencent-vps 'mv /usr/local/bin/cilicili.new /usr/local/bin/cilicili && systemctl restart cilicili'
+scp bin/cilicili-linux-amd64 root@host:/usr/local/bin/cilicili
 ```
 
-## 7. 回滚
+```ini
+[Unit]
+Description=CiLiCiLi backend
+After=network-online.target
 
-保留上一版二进制：
+[Service]
+WorkingDirectory=/var/lib/cilicili
+EnvironmentFile=/etc/cilicili/env
+ExecStart=/usr/local/bin/cilicili
+Restart=always
+User=cilicili
 
-```bash
-ssh tencent-vps 'cp /usr/local/bin/cilicili /usr/local/bin/cilicili.prev'
-# 回滚：cp ...prev ... && systemctl restart cilicili
+[Install]
+WantedBy=multi-user.target
 ```
 
-## 备注
+`/etc/cilicili/env` 至少包含：
 
-- 数据目录只存缓存与健康状态，删除即可重建；不会丢用户数据（当前阶段没有服务端用户数据）。
-- 若用自签证书，Android App 需要证书 pin；正式产品建议域名 + Let's Encrypt。
-- VPS 出口约 2.9 Mbps：Web/App 播放优先直连 CDN，代理只做兜底。
+```
+PASSWORD=change-me
+LISTEN=127.0.0.1:8080
+DATA_DIR=/var/lib/cilicili
+SOURCES_FILE=/etc/cilicili/sources.json
+```
+
+## 对外提供 HTTPS
+
+后端只监听本机，由 nginx/caddy 反代即可（`/api/*` 全部转发，注意保留 `Host`、
+`X-Forwarded-For`、`X-Forwarded-Proto`；视频代理是长连接，读超时建议 >= 1h）。

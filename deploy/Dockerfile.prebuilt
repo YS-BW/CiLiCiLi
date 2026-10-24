@@ -1,0 +1,12 @@
+# 离线/国内网络备用：先在 Mac 上 `make linux`，再用本文件构建镜像（不拉 golang 基础镜像）。
+FROM alpine:3
+RUN apk add --no-cache ca-certificates tzdata
+ENV TZ=Asia/Shanghai \
+    LISTEN=0.0.0.0:8080 \
+    DATA_DIR=/data \
+    SOURCES_FILE=/etc/cilicili/sources.json
+COPY bin/cilicili-linux-amd64 /usr/local/bin/cilicili
+COPY configs/sources.json /etc/cilicili/sources.json
+VOLUME ["/data"]
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/cilicili"]

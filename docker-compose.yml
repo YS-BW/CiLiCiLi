@@ -1,0 +1,18 @@
+services:
+  cilicili:
+    build: .
+    image: cilicili-backend:latest
+    container_name: cilicili-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # 容器内路径固定，避免 .env 里为裸机写的 ./data 相对路径生效
+      DATA_DIR: /data
+      CACHE_DB: /data/cache.db
+      USER_DB: /data/userdata.db
+      SOURCES_FILE: /etc/cilicili/sources.json
+      LISTEN: 0.0.0.0:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data

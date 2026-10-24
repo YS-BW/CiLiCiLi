@@ -1,0 +1,12 @@
+.git
+.gitignore
+.dsh
+.agents
+data
+bin
+docs
+openspec
+deploy
+*.md
+coverage.out
+tmp
