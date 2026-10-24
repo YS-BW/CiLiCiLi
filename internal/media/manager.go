@@ -189,7 +189,7 @@ func (m *Manager) SearchCards(items []model.SearchResultItem, now time.Time) ([]
 		}
 		cover := entity.firstCoverURL()
 		if path, err := m.store.CoverPath(id); err == nil && path != "" {
-			cover = m.coverBase + "/" + id + "/cover"
+			cover = m.coverURL(id, entity.Cover.Hash)
 		}
 		cards = append(cards, SearchMedia{
 			ID:          id,
@@ -227,7 +227,7 @@ func (m *Manager) Get(ctx context.Context, id string) (*Media, error) {
 		return nil, err
 	}
 	if path, err := m.store.CoverPath(id); err == nil && path != "" {
-		media.Cover.URL = m.coverBase + "/" + id + "/cover"
+		media.Cover.URL = m.coverURL(id, media.Cover.Hash)
 		media.Cover.LocalPath = path
 	}
 	if media.Cover.URL == "" {
@@ -334,11 +334,14 @@ func (m *Manager) applyCandidate(media *Media, c Candidate, status MatchStatus) 
 	if err := m.store.SetMatch(media.ID, c.Provider, c.ExternalID, c.Score, status); err != nil {
 		return err
 	}
-	// 封面：本地已有就不动；否则尝试候选封面。
-	if path, _ := m.store.CoverPath(media.ID); path == "" && c.CoverURL != "" {
-		ci, err := m.downloadCover(context.Background(), media.ID, c.CoverURL, c.Provider)
-		if err == nil {
-			_ = m.store.SaveCover(media.ID, ci, now)
+	// 封面：第三方优先。已有本地封面但是采集源/其他来源时，用候选封面替换；
+	// 人工设置的封面（source=manual）保持不动。
+	if strings.TrimSpace(c.CoverURL) != "" {
+		existing, _ := m.store.getCover(media.ID)
+		if existing == nil || existing.Source != "manual" {
+			if ci, err := m.downloadCover(context.Background(), media.ID, c.CoverURL, c.Provider); err == nil {
+				_ = m.store.SaveCover(media.ID, ci, now)
+			}
 		}
 	}
 	return nil
@@ -371,10 +374,13 @@ func (m *Manager) CoverPath(id string) (string, error) {
 
 // Refresh 重置刮削状态并排队。
 func (m *Manager) Refresh(ctx context.Context, id string) error {
+	// 清掉旧封面，让重新刮削按「第三方优先、采集源兜底」重选。
+	_ = m.RemoveCover(id)
 	if err := m.store.SetMetadataStatus(id, MetaQueued); err != nil {
 		return err
 	}
-	if err := m.store.EnqueueJob(id, time.Now()); err != nil {
+	// EnqueueJob 只对 idle 入队；人工刷新必须用 ResetJob 强制重排。
+	if err := m.store.ResetJob(id, time.Now()); err != nil {
 		return err
 	}
 	m.Notify()
@@ -397,6 +403,20 @@ func (m *Manager) ensureCover(ctx context.Context, media *Media, candidates []Ca
 	if path, err := m.store.CoverPath(media.ID); err == nil && path != "" {
 		return true
 	}
+	// 第三方封面优先（目前是 TMDB，候选已按分数排序）；
+	// 第三方没有或下载失败才退回采集源 pic。
+	for _, c := range candidates {
+		if strings.TrimSpace(c.CoverURL) == "" {
+			continue
+		}
+		ci, err := m.downloadCover(ctx, media.ID, c.CoverURL, c.Provider)
+		if err == nil {
+			ci.UpdatedAt = time.Now().UnixMilli()
+			if err := m.store.SaveCover(media.ID, ci, time.Now()); err == nil {
+				return true
+			}
+		}
+	}
 	// 采集源封面：按源 key 排序保证稳定。
 	refs := append([]SourceRef(nil), media.Sources...)
 	sort.SliceStable(refs, func(i, j int) bool { return refs[i].SourceKey < refs[j].SourceKey })
@@ -412,21 +432,26 @@ func (m *Manager) ensureCover(ctx context.Context, media *Media, candidates []Ca
 			}
 		}
 	}
-	// 候选封面（已排序）。
-	for _, c := range candidates {
-		if strings.TrimSpace(c.CoverURL) == "" {
-			continue
-		}
-		ci, err := m.downloadCover(ctx, media.ID, c.CoverURL, c.Provider)
-		if err == nil {
-			ci.UpdatedAt = time.Now().UnixMilli()
-			if err := m.store.SaveCover(media.ID, ci, time.Now()); err == nil {
-				return true
-			}
-		}
-	}
 	// 全部失败：记录不可达（不阻塞后续）。
 	return false
+}
+
+// coverURL 生成本地封面地址；带 hash 版本号，封面变化时 URL 随之变化，
+// 前端可以放心长缓存（浏览器 30 天），不必每次回源。
+func (m *Manager) coverURL(id, hash string) string {
+	u := m.coverBase + "/" + id + "/cover"
+	if len(hash) > 12 {
+		hash = hash[:12]
+	}
+	if hash != "" {
+		u += "?v=" + hash
+	}
+	return u
+}
+
+// CoverInfo 返回本地封面缓存信息（供 HTTP 缓存头使用）。
+func (m *Manager) CoverInfo(id string) (*CoverInfo, error) {
+	return m.store.getCover(id)
 }
 
 // RemoveCover 删除本地封面文件与记录（人工重设前用）。

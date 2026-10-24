@@ -468,16 +468,20 @@ Base URL：`/api`。除特别说明外：
 - 只接受 http(s)，服务端下载并校验 `image/*`、≤8 MiB、解码宽高后落盘；失败返回 400/502。
 - 封面本地文件按 `mediaId` 命名，保存 `hash/宽高/来源`；前端不依赖外部图片域名。
 
-### 12.4 封面优先级
+### 12.4 封面优先级与缓存
 
-1. 人工设置（`POST /cover`）或人工确认候选的封面；
-2. 当前媒体下采集源的有效封面（按 `sourceKey` 顺序逐个尝试下载）；
-3. 其他源（已聚合进同一媒体）的封面；
-4. 第三方候选封面（当前未接入 provider，此级为空）；
-5. 都没有时 `/cover` 返回 404，前端显示本地占位图。
+1. **人工设置**（`POST /api/media/{id}/cover`）——显式覆盖，只有它高于 TMDB；
+2. **TMDB 候选封面**（候选按分数排序，取第一个能下载成功的）；
+3. **采集源 pic**（同一媒体的多个源按 `sourceKey` 顺序尝试）；
+4. 都没有时 `/cover` 返回 404，前端显示本地占位图。
 
-搜索卡片 `media[].cover`：本地已缓存时返回 `/api/media/{id}/cover`，否则返回源站 `pic`；
-异步刮削完成后再次请求即可拿到本地封面。
+- 确认候选（`POST /match`）时会用对应 TMDB 封面替换非人工封面；`refresh-metadata` 会清掉旧封面按上述顺序重选。
+- 下载后落盘 `MEDIA_COVER_DIR`，SQLite 只存路径/哈希/宽高/来源。
+- **前端缓存**：`media[].cover` 是 `/api/media/{id}/cover?v=<hash>`；`hash` 变化时 URL 变化，
+  服务端返回 `Cache-Control: public, max-age=2592000, immutable` + `ETag`，浏览器直接命中本地缓存
+  （刷新/重进都不再请求 VPS）；同一会话内 Flutter 还有内存图片缓存。`If-None-Match` 命中返回 `304`。
+- 搜索卡片 `media[].cover`：本地已缓存时返回上述本地地址，否则返回源站 `pic`；
+  异步刮削完成后再次搜索即可拿到本地封面。
 
 ### 12.5 Provider 与降级
 

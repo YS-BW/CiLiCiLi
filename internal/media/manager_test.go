@@ -253,3 +253,50 @@ func TestProviderCooldown(t *testing.T) {
 		t.Fatalf("second media status = %q", media.MetadataStatus)
 	}
 }
+
+func TestTMDBPriorityCoverWinsOverSource(t *testing.T) {
+	p := &fakeProvider{name: "tmdb", enabled: true, cands: []Candidate{{
+		ID: "tmdb:1", Provider: "tmdb", ExternalID: "1", Title: "庆余年", Year: "2019",
+		Kind: KindTV, Overview: "简介", CoverURL: "https://img.test/tmdb.jpg",
+	}}}
+	m, _ := newTestManager(t, p)
+	ids, err := m.UpsertItems(items(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := ids["a\x001"]
+	m.runJob(context.Background(), id, 0)
+
+	media, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 两个采集源都有 pic，但第三方封面应优先。
+	if media.Cover.Source != "tmdb" {
+		t.Fatalf("cover source = %q, want tmdb", media.Cover.Source)
+	}
+	if !strings.Contains(media.Cover.URL, "?v=") {
+		t.Fatalf("cover url should carry cache version: %q", media.Cover.URL)
+	}
+}
+
+func TestManualCoverNotOverwrittenByCandidate(t *testing.T) {
+	p := &fakeProvider{name: "tmdb", enabled: true, cands: []Candidate{{
+		ID: "tmdb:1", Provider: "tmdb", ExternalID: "1", Title: "庆余年", Year: "2019",
+		Kind: KindTV, CoverURL: "https://img.test/tmdb.jpg",
+	}}}
+	m, _ := newTestManager(t, p)
+	ids, _ := m.UpsertItems(items(), time.Now())
+	id := ids["a\x001"]
+	if _, err := m.SetCover(context.Background(), id, "https://img.test/manual.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	m.runJob(context.Background(), id, 0)
+	media, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if media.Cover.Source != "manual" {
+		t.Fatalf("manual cover should win, got %q", media.Cover.Source)
+	}
+}

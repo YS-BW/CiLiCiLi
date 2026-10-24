@@ -213,10 +213,20 @@ func (a *API) MediaCover(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	path, err := a.deps.Media.CoverPath(r.PathValue("id"))
+	id := r.PathValue("id")
+	path, err := a.deps.Media.CoverPath(id)
 	if err != nil || path == "" {
 		http.NotFound(w, r)
 		return
+	}
+	// 封面按 hash 做 ETag：前端可以长缓存，重复访问直接 304，不再回源。
+	if ci, _ := a.deps.Media.CoverInfo(id); ci != nil && ci.Hash != "" {
+		etag := `"` + ci.Hash + `"`
+		w.Header().Set("ETag", etag)
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -229,7 +239,12 @@ func (a *API) MediaCover(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	if ci, _ := a.deps.Media.CoverInfo(id); ci != nil && ci.Hash != "" {
+		// URL 带 ?v=<hash>，内容变化时 URL 会变，可以安全地 immutable。
+		w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, filepath.Base(path), info.ModTime(), f)
 }
