@@ -50,7 +50,6 @@
 
 ### M5 推荐 / 订阅
 - [ ] 豆瓣（电影/剧集/标签分页）+ 缓存
-- [ ] Bangumi 每日放送
 - [ ] 60s API 榜单
 - [ ] 源订阅：LibreTV / TVBOX / 接口目录；`DEFAULT_SUBSCRIPTIONS` 同步
 - [ ] 源发布（可选）
