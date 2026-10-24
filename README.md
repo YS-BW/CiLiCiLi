@@ -15,7 +15,7 @@ LibreTV 后端的 Go 重写版：多源聚合搜索、详情解析、流式代�
 - [x] 结构化播放列表：多线路 + 原始集名 + 与 URL 解耦的分集 ID
 - [x] 观看进度 / 观看历史 / 收藏（独立持久化，默认用户）
 - [x] 媒体聚合（一张影片一张卡）+ 本地封面缓存
-- [x] 媒体聚合卡片 + 采集站封面本地缓存（第三方 provider 暂未接入）
+- [x] 媒体聚合卡片 + 本地封面缓存 + TMDB 元数据候选（配置 key 后启用）
 - [x] SSRF 防护（DNS 固定、逐跳重定向复检）
 - [x] Bearer token + Web cookie 双鉴权
 - [x] 流式代理（图片/m3u8/分片/直播）+ m3u8 重写
@@ -86,6 +86,9 @@ make web-serve
 | `MEDIA_COVER_DIR` | `$DATA_DIR/covers` | 本地封面文件目录 |
 | `MEDIA_ENABLED` | `1` | 关闭后媒体聚合/刮削接口返回 501 |
 | `MEDIA_AUTO_CONFIRM` | `0` | 强匹配自动确认（默认只给候选） |
+| `TMDB_API_KEY` | 空 | TMDB v3 API key（与 token 二选一） |
+| `TMDB_READ_TOKEN` | 空 | TMDB v4 读访问令牌（与 key 二选一） |
+| `TMDB_API_BASE` | `https://api.tmdb.org` | 国内用官方别名，勿用 api.themoviedb.org |
 | `SOURCES_FILE` | 空 | 源配置文件（JSON）；与 `DEFAULT_SOURCES` 二选一 |
 | `DEFAULT_SOURCES` | 空 | 点播源 JSON 数组（LibreTV 兼容） |
 | `DEFAULT_LIVE_SOURCES` | 空 | 直播源 JSON 数组 |

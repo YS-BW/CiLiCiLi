@@ -22,6 +22,7 @@ import (
 	"cilicili/internal/detail"
 	"cilicili/internal/live"
 	"cilicili/internal/media"
+	"cilicili/internal/providers"
 	"cilicili/internal/proxy"
 	"cilicili/internal/quality"
 	"cilicili/internal/recommend"
@@ -186,11 +187,15 @@ func run() error {
 			return fmt.Errorf("打开媒体库失败: %w", err)
 		}
 		defer mediaStore.Close()
-		// 第三方元数据 provider 暂不接入：当前只做媒体聚合与本地封面缓存。
+		var metadataProviders []media.Provider
+		tmdb := providers.NewTMDB(client, cfg.TMDBAPIKey, cfg.TMDBReadToken, cfg.TMDBAPIBase)
+		if tmdb.Enabled() {
+			metadataProviders = append(metadataProviders, tmdb)
+		}
 		mediaMgr, err = media.NewManager(media.Config{
 			Store:       mediaStore,
 			Client:      client,
-			Providers:   nil,
+			Providers:   metadataProviders,
 			CoverDir:    cfg.MediaCoverDir,
 			Logger:      log,
 			CoverBase:   cfg.MediaCoverBase,
@@ -201,7 +206,7 @@ func run() error {
 		}
 		mediaMgr.Start(context.Background())
 		defer mediaMgr.Stop()
-		log.Info("media library enabled", "db", cfg.MediaDB, "covers", cfg.MediaCoverDir)
+		log.Info("media library enabled", "db", cfg.MediaDB, "covers", cfg.MediaCoverDir, "tmdb", tmdb.Enabled())
 	}
 
 	authMgr := auth.New(cfg.Password, cfg.ProxySecret, cfg.TokenTTL)

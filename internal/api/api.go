@@ -69,6 +69,30 @@ func (a *API) Health(w http.ResponseWriter, r *http.Request) {
 // Status 返回站点状态、鉴权状态与预置源。
 func (a *API) Status(w http.ResponseWriter, r *http.Request) {
 	verified := a.deps.Auth != nil && a.deps.Auth.FromRequest(r)
+	capabilities := []string{
+		"search.stream",
+		"search.soft_deadline",
+		"search.server_health",
+		"search.fast_mode",
+		"detail",
+		"detail.playlines",
+		"proxy",
+		"sources",
+		"sources.subscribe",
+		"me.progress",
+		"me.favorites",
+		"quality",
+		"live",
+		"recommend",
+		"media",
+		"media.cover",
+		"auth.bearer",
+	}
+	if a.deps.Media != nil {
+		for _, name := range a.deps.Media.ProviderNames() {
+			capabilities = append(capabilities, "media.provider."+name)
+		}
+	}
 	httpx.WriteJSON(w, http.StatusOK, model.AuthStatusResponse{
 		PasswordRequired:       a.deps.Auth != nil && a.deps.Auth.Configured(),
 		Verified:               verified,
@@ -78,25 +102,7 @@ func (a *API) Status(w http.ResponseWriter, r *http.Request) {
 		DefaultSubscriptions:   a.deps.Cfg.DefaultSubscriptions,
 		DefaultRecommendSource: a.deps.Cfg.DefaultRecommendSource,
 		DefaultImageMode:       a.deps.Cfg.DefaultImageMode,
-		Capabilities: []string{
-			"search.stream",
-			"search.soft_deadline",
-			"search.server_health",
-			"search.fast_mode",
-			"detail",
-			"detail.playlines",
-			"proxy",
-			"sources",
-			"sources.subscribe",
-			"me.progress",
-			"me.favorites",
-			"quality",
-			"live",
-			"recommend",
-			"media",
-			"media.cover",
-			"auth.bearer",
-		},
+		Capabilities:           capabilities,
 	})
 }
 

@@ -78,6 +78,20 @@ func NewManager(cfg Config) (*Manager, error) {
 }
 
 // Store 暴露底层存储（API 查询/统计用）。
+// ProviderNames 返回已启用的第三方元数据源名称（用于能力探测）。
+func (m *Manager) ProviderNames() []string {
+	if m == nil {
+		return nil
+	}
+	names := make([]string, 0, len(m.providers))
+	for _, p := range m.providers {
+		if p != nil && p.Enabled() {
+			names = append(names, p.Name())
+		}
+	}
+	return names
+}
+
 func (m *Manager) Store() *Store { return m.store }
 
 // UpsertItems 把搜索结果写入媒体库，返回 item 对应的 mediaID（可能为空）。

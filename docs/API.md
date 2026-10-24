@@ -483,13 +483,17 @@ Base URL：`/api`。除特别说明外：
 
 | Provider | 覆盖 | 配置 |
 | --- | --- | --- |
-当前**没有启用任何第三方 provider**：`/api/media` 只做媒体聚合 + 采集站封面本地缓存，
-`candidates` 为空、`matchStatus` 为 `pending`，`metadataStatus` 会在封面处理完后 `done`。
+| TMDB | 电影 / 剧集 / 动漫（动漫按 tv 查） | `TMDB_API_KEY` 或 `TMDB_READ_TOKEN`（任一）；`TMDB_API_BASE` 默认 `https://api.tmdb.org` |
 
-- 搜索/详情不依赖任何 key，也不需要第三方网络。
-- 以后接入 provider 时沿用同一个 `Provider` 接口；某个 provider 失败不影响其他 provider，
-  全部失败才把任务标为 `failed` 并退避重试（最多 3 次）。
-- 豆瓣没有稳定公开 API，不接入，只用于人工整理候选。
+- 未配置凭据时 TMDB 自动禁用（`Enabled=false`），流程不等待、不失败；聚合与封面缓存照常工作。
+- 国内网络下 `api.themoviedb.org` 会被 DNS 污染，默认用官方别名 `https://api.tmdb.org`；
+  图片走 `https://image.tmdb.org`，实测可达。
+- 用 v4 读访问令牌时请求带 `Authorization: Bearer <token>`，不把 token 放进 URL。
+- 搜索只传 `query` + `language=zh-CN` + `include_adult=false`，不传 year（采集站年份常不准，传了会漏召回）；
+  年份只在本地评分里使用。
+- 某个 provider 失败不影响其他 provider；全部失败才把任务标为 `failed` 并退避重试（最多 3 次）。
+- 免费 API 需遵守 TMDB 条款：应用内注明 “This product uses the TMDB API but is not endorsed or certified by TMDB.”，
+  且不得用于商业用途。
 
 ### 12.6 存储
 

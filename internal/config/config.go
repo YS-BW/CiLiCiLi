@@ -24,6 +24,9 @@ type Config struct {
 	MediaCoverBase   string
 	MediaEnabled     bool
 	MediaAutoConfirm bool
+	TMDBAPIKey       string
+	TMDBReadToken    string
+	TMDBAPIBase      string
 
 	Version     string
 	Password    string
@@ -80,6 +83,9 @@ func Load() (*Config, error) {
 		MediaCoverBase:   envString("MEDIA_COVER_BASE", "/api/media"),
 		MediaEnabled:     envBool("MEDIA_ENABLED", true),
 		MediaAutoConfirm: envBool("MEDIA_AUTO_CONFIRM", false),
+		TMDBAPIKey:       envString("TMDB_API_KEY", ""),
+		TMDBReadToken:    envString("TMDB_READ_TOKEN", ""),
+		TMDBAPIBase:      envString("TMDB_API_BASE", "https://api.tmdb.org"),
 		Version:          envString("APP_VERSION", "dev"),
 		Password:         os.Getenv("PASSWORD"),
 		ProxySecret:      os.Getenv("PROXY_SECRET"),
