@@ -22,7 +22,6 @@ import (
 	"cilicili/internal/detail"
 	"cilicili/internal/live"
 	"cilicili/internal/media"
-	"cilicili/internal/providers"
 	"cilicili/internal/proxy"
 	"cilicili/internal/quality"
 	"cilicili/internal/recommend"
@@ -187,11 +186,11 @@ func run() error {
 			return fmt.Errorf("打开媒体库失败: %w", err)
 		}
 		defer mediaStore.Close()
-		providerList := []media.Provider{providers.NewBangumi(client, cfg.BangumiAPIBase)}
+		// 第三方元数据 provider 暂不接入：当前只做媒体聚合与本地封面缓存。
 		mediaMgr, err = media.NewManager(media.Config{
 			Store:       mediaStore,
 			Client:      client,
-			Providers:   providerList,
+			Providers:   nil,
 			CoverDir:    cfg.MediaCoverDir,
 			Logger:      log,
 			CoverBase:   cfg.MediaCoverBase,

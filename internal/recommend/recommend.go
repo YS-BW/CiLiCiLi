@@ -17,11 +17,11 @@ import (
 
 const (
 	// defaultUserAgent 是默认请求 UA。豆瓣的搜索引擎接口要求像浏览器的 UA，
-	// Bangumi / 60s API 只要求「可识别的 UA」（浏览器 UA 同样可用），因此三者共用一个默认值。
+	// 60s API 只要求「可识别的 UA」（浏览器 UA 同样可用），因此共用一个默认值。
 	defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 	// defaultTimeout 是单次上游请求的默认超时（与配置层 RecommendTimeout 的默认 10s 对齐）。
 	defaultTimeout = 10 * time.Second
-	// maxRecommendBody 是推荐接口的响应体上限：豆瓣/Bangumi/60s 正常都在百 KB 量级。
+	// maxRecommendBody 是推荐接口的响应体上限：豆瓣/60s 正常都在百 KB 量级。
 	maxRecommendBody = 4 << 20
 	// defaultSixtyAPIBase 是 60s API 的默认社区实例；部署者可用 SixtyAPIBase 指向自建实例。
 	defaultSixtyAPIBase = "https://60s.crystelf.top"
@@ -43,7 +43,7 @@ func window(fresh time.Duration) cacheWindow {
 	return cacheWindow{fresh: fresh, stale: staleMultiplier * fresh}
 }
 
-// Fetcher 拉取首页推荐数据（豆瓣 / Bangumi / 影视榜单）。
+// Fetcher 拉取首页推荐数据（豆瓣 / 影视榜单）。
 type Fetcher struct {
 	client    upstream.Doer
 	cache     cache.Store
@@ -107,7 +107,7 @@ func (f *Fetcher) doubanHeaders() http.Header {
 	return h
 }
 
-// jsonHeaders 返回 Bangumi / 60s 使用的请求头。
+// jsonHeaders 返回 60s API 使用的请求头。
 func (f *Fetcher) jsonHeaders() http.Header {
 	h := http.Header{}
 	h.Set("User-Agent", f.ua)

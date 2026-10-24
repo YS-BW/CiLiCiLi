@@ -48,21 +48,6 @@ func (a *API) Douban(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-// Bangumi 返回每日放送表。
-func (a *API) Bangumi(w http.ResponseWriter, r *http.Request) {
-	if a.deps.Recommend == nil {
-		httpx.WriteError(w, http.StatusNotImplemented, "推荐服务尚未启用")
-		return
-	}
-	days, err := a.deps.Recommend.BangumiCalendar(r.Context())
-	if err != nil {
-		a.deps.Log.Debug("bangumi failed", "err", err)
-		httpx.WriteError(w, http.StatusBadGateway, "新番放送表获取失败")
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"days": days})
-}
-
 // HotList 返回影视榜单。
 func (a *API) HotList(w http.ResponseWriter, r *http.Request) {
 	if a.deps.Recommend == nil {

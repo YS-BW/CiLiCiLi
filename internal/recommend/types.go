@@ -1,11 +1,11 @@
-// Package recommend 实现首页推荐数据源：豆瓣、Bangumi、影视榜单（60s API）。
+// Package recommend 实现首页推荐数据源：豆瓣、影视榜单（60s API）。
 //
 // 合同：
 //
 //	func New(opts Options) *Fetcher
 //	func (f *Fetcher) Douban(ctx context.Context, typ, tag string, pageStart, pageSize int) ([]model.DoubanItem, error)
-//	func (f *Fetcher) BangumiCalendar(ctx context.Context) ([]model.BangumiCalendarDay, error)
-//	func (f *Fetcher) HotList(ctx context.Context, id string) ([]model.DoubanItem, error)
+//
+// //	func (f *Fetcher) HotList(ctx context.Context, id string) ([]model.DoubanItem, error)
 //
 // 语义：
 //   - 豆瓣：服务端直连 + 10 分钟缓存；封面防盗链由代理层处理；

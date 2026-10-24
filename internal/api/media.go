@@ -45,6 +45,34 @@ func (a *API) MediaResolve(w http.ResponseWriter, r *http.Request) {
 		if len(items) > 100 {
 			items = items[:100]
 		}
+		// 只带 sourceKey+vodId 的条目（收藏/历史）不重新建媒体，直接查已有聚合，
+		// 避免客户端为了换源把整条目录再搜一遍。
+		lookupOnly := true
+		for _, it := range items {
+			if strings.TrimSpace(it.Name) != "" {
+				lookupOnly = false
+				break
+			}
+		}
+		if lookupOnly {
+			cards := make([]media.SearchMedia, 0, len(items))
+			for _, it := range items {
+				m, err := a.deps.Media.Resolve(r.Context(), it.SourceKey, it.VodID)
+				if err != nil || m == nil {
+					continue
+				}
+				cover := m.Cover.URL
+				if cover == "" {
+					cover = m.Metadata.Cover
+				}
+				cards = append(cards, media.SearchMedia{
+					ID: m.ID, Kind: m.Kind, Title: m.Metadata.Title, Year: m.Metadata.Year,
+					Cover: cover, SourceCount: m.SourceCount, MatchStatus: m.MatchStatus, Sources: m.Sources,
+				})
+			}
+			httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": cards})
+			return
+		}
 		cards, err := a.deps.Media.SearchCards(items, time.Now())
 		if err != nil {
 			a.deps.Log.Error("media resolve failed", "err", err)

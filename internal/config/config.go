@@ -24,7 +24,6 @@ type Config struct {
 	MediaCoverBase   string
 	MediaEnabled     bool
 	MediaAutoConfirm bool
-	BangumiAPIBase   string
 
 	Version     string
 	Password    string
@@ -81,7 +80,6 @@ func Load() (*Config, error) {
 		MediaCoverBase:   envString("MEDIA_COVER_BASE", "/api/media"),
 		MediaEnabled:     envBool("MEDIA_ENABLED", true),
 		MediaAutoConfirm: envBool("MEDIA_AUTO_CONFIRM", false),
-		BangumiAPIBase:   envString("BANGUMI_API_BASE", "https://api.bgm.tv"),
 		Version:          envString("APP_VERSION", "dev"),
 		Password:         os.Getenv("PASSWORD"),
 		ProxySecret:      os.Getenv("PROXY_SECRET"),

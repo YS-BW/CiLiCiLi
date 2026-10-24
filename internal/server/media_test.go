@@ -121,3 +121,34 @@ func TestMediaResolveBatch(t *testing.T) {
 		t.Fatalf("candidates body = %s", data)
 	}
 }
+
+func TestMediaResolveLookupOnly(t *testing.T) {
+	ts, _ := newTestServer(t)
+	token := login(t, ts)
+	// 先通过搜索建媒体。
+	status, _ := doJSON(t, ts, http.MethodPost, "/api/search", token, map[string]any{
+		"wd": "庆余年", "includeMedia": true,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("search = %d", status)
+	}
+	// 只带 sourceKey+vodId：应返回已聚合卡片，而不是 404/空。
+	status, data := doJSON(t, ts, http.MethodPost, "/api/media/resolve", token, map[string]any{
+		"items": []map[string]any{{"sourceKey": "a", "vodId": "1"}},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("lookup resolve = %d %s", status, data)
+	}
+	var out struct {
+		Items []struct {
+			ID          string `json:"id"`
+			SourceCount int    `json:"sourceCount"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Items) != 1 || !strings.HasPrefix(out.Items[0].ID, "media_") {
+		t.Fatalf("items = %+v", out.Items)
+	}
+}

@@ -220,7 +220,10 @@ func decodeDoubanWeekly(data []byte, isTV bool) ([]model.DoubanItem, error) {
 	items := make([]model.DoubanItem, 0, len(raws))
 	for _, raw := range raws {
 		// cover 是 img*.doubanio.com 原生图（命中图片代理白名单），cover_proxy 仅作兜底。
-		cover := firstNonEmpty(raw.Cover, raw.CoverProxy)
+		cover := strings.TrimSpace(raw.Cover)
+		if cover == "" {
+			cover = strings.TrimSpace(raw.CoverProxy)
+		}
 		id := strings.TrimSpace(string(raw.ID))
 		title := strings.TrimSpace(raw.Title)
 		if id == "" || title == "" || cover == "" {

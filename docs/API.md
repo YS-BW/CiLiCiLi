@@ -190,7 +190,7 @@ Base URL：`/api`。除特别说明外：
 - 分集身份：优先 `episodeId`（名称型，如 `e:第03集`），与 URL 解耦；跨线路同名集 ID 相同，
   便于换线续播。客户端定位顺序应为：**episodeId → episodeName → episodeIndex**；
   线路定位：**lineId → lineName → preferred 线路**。
-- 豆瓣 / Bangumi 推荐卡片的 `id` 属于推荐域，**不是**采集站 `vodId`；点击推荐后应先用标题调用
+- 豆瓣推荐卡片的 `id` 属于推荐域，**不是**采集站 `vodId`；点击推荐后应先用标题调用
   `/api/search`，由用户选择源与影片。
 - 未知字段一律为空值，服务端不推测季数、时长、剧情或缩略图。
 
@@ -243,7 +243,7 @@ Base URL：`/api`。除特别说明外：
 也兼容 `GET /api/proxy/<encoded>`。用于图片、m3u8、分片（Web 端 CORS/防盗链兜底）。
 
 - 已登录：任意公网 http(s)。
-- 未登录：仅放行豆瓣 / Bangumi 图片域（精确后缀白名单）。
+- 未登录：仅放行豆瓣图片域（精确后缀白名单）。
 - 透传 `Range`/`If-*`，支持 `HEAD`；分片流式转发。
 - m3u8 会重写内部的 variant/分片/key/map 地址，指向本代理。
 - 返回 `Access-Control-Allow-Origin: *`。
@@ -282,7 +282,6 @@ Base URL：`/api`。除特别说明外：
 | 接口 | 说明 |
 | --- | --- |
 | `GET /api/douban?type=movie\|tv&tag=<tag>&pageStart=0&pageSize=25` | 豆瓣推荐；10 分钟缓存 |
-| `GET /api/bangumi/calendar` | Bangumi 每日放送；30 分钟缓存 |
 | `GET /api/hot-list?id=<id>` | 影视榜单；1 小时缓存；未知 id 返回 400。可用 ids：`douban_movie_weekly` / `douban_tv_chinese` / `douban_tv_global` / `douban_show_chinese` / `douban_show_global` / `baidu_teleplay` |
 
 ## 9. 源订阅
@@ -373,7 +372,7 @@ Base URL：`/api`。除特别说明外：
 
 ## 12. 媒体聚合与元数据搜刮
 
-目标：前端只接收统一的 `mediaId`、封面、简介、演职员和匹配状态，不需要知道数据来自采集站还是 Bangumi。
+目标：前端只接收统一的 `mediaId`、封面、简介、演职员和匹配状态，不需要知道数据来自采集站还是第三方源。
 采集站原始条目仍然保留（`sourceKey + vodId`），永远可回查。
 
 ### 12.1 聚合规则
@@ -442,9 +441,7 @@ Base URL：`/api`。除特别说明外：
     "width": 270, "height": 404,
     "source": "bdzy", "reachable": true
   },
-  "candidates": [
-    {"id":"bangumi:123","provider":"bangumi","externalId":"123","title":"庆余年 第二季","year":"2024","score":0.95,"coverUrl":"https://lain.bgm.tv/...","selected":false}
-  ],
+  "candidates": [],
   "matchStatus": "suggested",
   "metadataStatus": "done",
   "updatedAt": 1760000000000
@@ -454,7 +451,7 @@ Base URL：`/api`。除特别说明外：
 `POST /api/media/{id}/match`：
 
 ```json
-{"action":"confirm","provider":"bangumi","externalId":"123"}
+{"action":"confirm","provider":"<provider>","externalId":"<id>"}
 {"action":"reject"}
 {"action":"clear"}
 ```
@@ -473,7 +470,7 @@ Base URL：`/api`。除特别说明外：
 1. 人工设置（`POST /cover`）或人工确认候选的封面；
 2. 当前媒体下采集源的有效封面（按 `sourceKey` 顺序逐个尝试下载）；
 3. 其他源（已聚合进同一媒体）的封面；
-4. 第三方候选封面（目前只有 Bangumi，覆盖动漫）；
+4. 第三方候选封面（当前未接入 provider，此级为空）；
 5. 都没有时 `/cover` 返回 404，前端显示本地占位图。
 
 搜索卡片 `media[].cover`：本地已缓存时返回 `/api/media/{id}/cover`，否则返回源站 `pic`；
@@ -483,10 +480,12 @@ Base URL：`/api`。除特别说明外：
 
 | Provider | 覆盖 | 配置 |
 | --- | --- | --- |
-| Bangumi | 动漫（也接受剧集；电影/剧集暂无第三方源） | 免 key；`BANGUMI_API_BASE` 可换镜像 |
+当前**没有启用任何第三方 provider**：`/api/media` 只做媒体聚合 + 采集站封面本地缓存，
+`candidates` 为空、`matchStatus` 为 `pending`，`metadataStatus` 会在封面处理完后 `done`。
 
-- 电影/剧集目前没有第三方 provider，只使用采集站封面与元数据；搜索/详情不依赖任何 key。
-- 某个 provider 失败不影响其他 provider；全部失败才把任务标为 `failed` 并退避重试。
+- 搜索/详情不依赖任何 key，也不需要第三方网络。
+- 以后接入 provider 时沿用同一个 `Provider` 接口；某个 provider 失败不影响其他 provider，
+  全部失败才把任务标为 `failed` 并退避重试（最多 3 次）。
 - 豆瓣没有稳定公开 API，不接入，只用于人工整理候选。
 
 ### 12.6 存储

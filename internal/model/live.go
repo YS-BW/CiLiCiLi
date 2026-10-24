@@ -48,12 +48,6 @@ type LiveProbeResult struct {
 	Kbps     int    `json:"kbps,omitempty"`
 }
 
-// BangumiCalendarDay 是 Bangumi 每日放送的一天。
-type BangumiCalendarDay struct {
-	Weekday int          `json:"weekday"`
-	Items   []DoubanItem `json:"items"`
-}
-
 // SubscriptionSkipReason 是订阅条目被跳过的原因。
 type SubscriptionSkipReason string
 

@@ -15,13 +15,13 @@ LibreTV 后端的 Go 重写版：多源聚合搜索、详情解析、流式代�
 - [x] 结构化播放列表：多线路 + 原始集名 + 与 URL 解耦的分集 ID
 - [x] 观看进度 / 观看历史 / 收藏（独立持久化，默认用户）
 - [x] 媒体聚合（一张影片一张卡）+ 本地封面缓存
-- [x] 第三方元数据候选（Bangumi）+ 人工确认；封面本地缓存
+- [x] 媒体聚合卡片 + 采集站封面本地缓存（第三方 provider 暂未接入）
 - [x] SSRF 防护（DNS 固定、逐跳重定向复检）
 - [x] Bearer token + Web cookie 双鉴权
 - [x] 流式代理（图片/m3u8/分片/直播）+ m3u8 重写
 - [ ] 画质探测（m3u8 / 分片 SPS / MP4 moov）— 进行中
 - [ ] 直播（M3U/EPG/测活/长连接）— 进行中
-- [ ] 首页推荐（豆瓣 / Bangumi / 榜单）— 进行中
+- [x] 首页推荐（豆瓣 / 影视榜单）
 - [ ] 源订阅 / 发布 — 进行中
 - [x] Fladder Web 核心点播：登录、推荐、搜索、详情/选集、直连/代理播放、续播、收藏
 - [ ] 原生 App（Web 稳定后）
@@ -86,7 +86,6 @@ make web-serve
 | `MEDIA_COVER_DIR` | `$DATA_DIR/covers` | 本地封面文件目录 |
 | `MEDIA_ENABLED` | `1` | 关闭后媒体聚合/刮削接口返回 501 |
 | `MEDIA_AUTO_CONFIRM` | `0` | 强匹配自动确认（默认只给候选） |
-| `BANGUMI_API_BASE` | `https://api.bgm.tv` | Bangumi 镜像地址 |
 | `SOURCES_FILE` | 空 | 源配置文件（JSON）；与 `DEFAULT_SOURCES` 二选一 |
 | `DEFAULT_SOURCES` | 空 | 点播源 JSON 数组（LibreTV 兼容） |
 | `DEFAULT_LIVE_SOURCES` | 空 | 直播源 JSON 数组 |
