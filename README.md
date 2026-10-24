@@ -1,10 +1,7 @@
-# CiLiCiLi
+# CiLiCiLi 后端
 
-CiLiCiLi = 后端（本仓库根目录，Go）+ Android 客户端（`android/`，Kotlin/Compose/Media3，开发中）。
-Web 客户端不在此仓库。
-
-后端提供多源聚合搜索、详情解析、流式代理、媒体聚合/刮削、持久缓存、源健康探测与自动发现。
-对外只暴露一套 HTTP API（`/api/*`），客户端直接对接。
+CiLiCiLi 的服务端：多源聚合搜索、详情解析、流式代理、媒体聚合/刮削、持久缓存、源健康探测与自动发现。
+对外只暴露一套 HTTP API（`/api/*`）；Web / App 客户端不在本仓库内。
 
 - API 文档：[docs/API.md](docs/API.md)
 - 设计/评估：[docs/backend-rewrite-assessment.md](docs/backend-rewrite-assessment.md)
@@ -63,19 +60,6 @@ curl -s http://127.0.0.1:8080/api/health
 
 全部走环境变量，参考 [.env.example](.env.example)；`PASSWORD` 必填，其余有默认值。
 `SOURCES_FILE` 首次启动导入默认源，之后以 `sources.db` 为准。
-
-## Android 客户端
-
-`android/` 是从零重写的原生客户端（Kotlin + Compose + Media3 + 液态玻璃组件）：
-
-```bash
-cd android
-# 需要 Android SDK 37 / JDK 21
-gradle :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-默认连接 `http://124.221.121.195`，登录页可改服务器地址。
 
 ## 目录
 

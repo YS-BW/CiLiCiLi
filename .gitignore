@@ -25,11 +25,3 @@ __pycache__/
 
 # 参考项目（本地查看，不提交）
 /references/
-
-# Android（构建产物/本机配置）
-android/.gradle/
-android/build/
-android/**/build/
-android/local.properties
-android/*.jks
-android/key.properties
