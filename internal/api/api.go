@@ -14,6 +14,7 @@ import (
 	"cilicili/internal/detail"
 	"cilicili/internal/httpx"
 	"cilicili/internal/live"
+	"cilicili/internal/media"
 	"cilicili/internal/model"
 	"cilicili/internal/quality"
 	"cilicili/internal/recommend"
@@ -41,6 +42,7 @@ type Deps struct {
 	Recommend *recommend.Fetcher
 	Subscribe *subscribe.Fetcher
 	UserData  *userdata.Store
+	Media     *media.Manager
 	Version   string
 }
 
@@ -91,6 +93,8 @@ func (a *API) Status(w http.ResponseWriter, r *http.Request) {
 			"quality",
 			"live",
 			"recommend",
+			"media",
+			"media.cover",
 			"auth.bearer",
 		},
 	})
@@ -179,11 +183,17 @@ func (a *API) ResetSource(w http.ResponseWriter, r *http.Request) {
 
 // Metrics 返回运行指标（轻量 JSON；后续可替换为 Prometheus）。
 func (a *API) Metrics(w http.ResponseWriter, r *http.Request) {
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"version":    a.deps.Version,
 		"uptimeMs":   time.Since(a.start).Milliseconds(),
 		"goroutines": runtime.NumGoroutine(),
 		"cache":      a.deps.Cache.Stats(),
 		"health":     a.deps.Registry.Health().Snapshot(time.Now()),
-	})
+	}
+	if a.deps.Media != nil {
+		if stats, err := a.deps.Media.Store().Stats(); err == nil {
+			payload["media"] = stats
+		}
+	}
+	httpx.WriteJSON(w, http.StatusOK, payload)
 }

@@ -30,7 +30,7 @@
 - [ ] 详情预取 / 首分片预取（播放起播进一步提速，后续）
 
 ### M2.5 客户端数据（Fladder 集成）✅
-- [x] 详情：多线路 + 原始集名 + 稳定分集 ID（`l<线路>e<集>`）
+- [x] 详情：多线路 + 原始集名 + 稳定分集 ID（`ln:<线路名>` / `e:<原始集名>`）
 - [x] 观看进度 `PUT /api/me/progress`、历史 `GET/DELETE /api/me/history`
 - [x] 收藏 `GET/PUT/DELETE /api/me/favorites`
 - [x] 独立 bbolt 持久化（userdata.db），默认用户；不放进缓存
@@ -55,15 +55,19 @@
 - [ ] 源订阅：LibreTV / TVBOX / 接口目录；`DEFAULT_SUBSCRIPTIONS` 同步
 - [ ] 源发布（可选）
 
-### M6 Web 前端（YouTube 风格）
-- 技术栈建议：Next.js（App Router）+ TypeScript + Tailwind + hls.js；TV/大屏优先响应式。
-- 页面：首页推荐、搜索、播放页、片库/历史、源管理、设置、登录。
-- 交互：流式搜索边到边渲染；1.2s 软截止结束 loading；播放直连优先、代理兜底。
-- 部署：静态托管由 nginx 提供；API 同源 `/api`；可选 SSR 独立进程。
+### M6 Fladder Web 核心点播 ✅
+- [x] 引入上游 v0.11.1，保留原有 Flutter 组件、动画、主题和播放器。
+- [x] 客户端 API 边界适配现有 Go；密码登录、推荐→影片主页、同片搜索归并、主页切换片源、详情/选集、首页缓存。
+- [x] 直连/代理线路、进度保存、继续观看、收藏。
+- [x] 生产构建、适配测试、本地同源预览；真实 Go + 自制 HLS 浏览器验证。
+- [ ] 源管理/订阅页、直播等后续能力按实际后端契约接入。
+- [x] Web 页面重组：单一导航/分类、收藏本地筛选、紧凑选集与有效设置；完整中文字体随包提供。
+- [x] 搜索/详情持久缓存及刷新路由恢复；播放前强制校验源地址。
+- 运行、部署、上游版本及限制见 [Fladder Web](../clients/fladder/CILICILI.md)。
 
-### M7 原生 App
-- Kotlin + Compose + Media3/ExoPlayer；Bearer token；证书 pin（如仍用自签）。
-- 播放：m3u8 直连 CDN；代理仅兜底；离线下载、投屏、TV 焦点导航。
+### M7 原生 App（后续）
+- 沿用 Fladder Flutter 分支；当前只验收 Web，不另起原生 UI 重写。
+- Android 等平台的 API、播放器与设备兼容性另行适配和验证。
 
 ## 性能目标（验收）
 

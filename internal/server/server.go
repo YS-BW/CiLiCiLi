@@ -50,6 +50,15 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("PUT /api/me/favorites", guard(d.API.PutFavorite))
 	mux.HandleFunc("DELETE /api/me/favorites/{id}", guard(d.API.DeleteFavorite))
 
+	// 媒体聚合与第三方元数据（Fladder 统一封面/简介/匹配）
+	mux.HandleFunc("POST /api/media/resolve", guard(d.API.MediaResolve))
+	mux.HandleFunc("GET /api/media/{id}", guard(d.API.MediaGet))
+	mux.HandleFunc("GET /api/media/{id}/metadata-candidates", guard(d.API.MediaCandidates))
+	mux.HandleFunc("POST /api/media/{id}/match", guard(d.API.MediaMatch))
+	mux.HandleFunc("POST /api/media/{id}/cover", guard(d.API.MediaSetCover))
+	mux.HandleFunc("GET /api/media/{id}/cover", d.API.MediaCover)
+	mux.HandleFunc("POST /api/media/{id}/refresh-metadata", guard(d.API.MediaRefresh))
+
 	// 代理自己处理鉴权（匿名图片域），这里不再套 guard。
 	mux.HandleFunc("GET /api/proxy", d.API.Proxy)
 	mux.HandleFunc("GET /api/proxy/{target...}", d.API.Proxy)

@@ -3,7 +3,7 @@
 LibreTV 后端的 Go 重写版：多源聚合搜索、详情解析、流式代理、持久缓存与服务端源健康。
 目标是单二进制、可部署、Web 与原生 App 共用一套 API。
 
-> 当前阶段：**服务端 / API 优先**。Web 前端与原生 App 在后续阶段实现。
+> 当前阶段：服务端持续开发；**Fladder Web 已接入核心点播流程**，原生端后续处理。
 > 设计依据与实测数据见 [docs/backend-rewrite-assessment.md](docs/backend-rewrite-assessment.md)。
 
 ## 特性（规划中按里程碑交付）
@@ -14,6 +14,8 @@ LibreTV 后端的 Go 重写版：多源聚合搜索、详情解析、流式代�
 - [x] 详情解析（列表接口优先，详情页 HTML 兜底）
 - [x] 结构化播放列表：多线路 + 原始集名 + 与 URL 解耦的分集 ID
 - [x] 观看进度 / 观看历史 / 收藏（独立持久化，默认用户）
+- [x] 媒体聚合（一张影片一张卡）+ 本地封面缓存
+- [x] 第三方元数据候选（Bangumi）+ 人工确认；封面本地缓存
 - [x] SSRF 防护（DNS 固定、逐跳重定向复检）
 - [x] Bearer token + Web cookie 双鉴权
 - [x] 流式代理（图片/m3u8/分片/直播）+ m3u8 重写
@@ -21,7 +23,7 @@ LibreTV 后端的 Go 重写版：多源聚合搜索、详情解析、流式代�
 - [ ] 直播（M3U/EPG/测活/长连接）— 进行中
 - [ ] 首页推荐（豆瓣 / Bangumi / 榜单）— 进行中
 - [ ] 源订阅 / 发布 — 进行中
-- [ ] Web 前端（YouTube 风格）
+- [x] Fladder Web 核心点播：登录、推荐、搜索、详情/选集、直连/代理播放、续播、收藏
 - [ ] 原生 App（Web 稳定后）
 
 ## 快速开始
@@ -55,6 +57,19 @@ curl -N -b /tmp/c.txt -H 'Content-Type: application/json' \
   -d '{"wd":"庆余年"}' 'localhost:8080/api/search?stream=1'
 ```
 
+## Web 前端
+
+使用原版 Fladder（Flutter）界面和动画，客户端适配现有 Go API：
+
+```bash
+# Flutter 3.35.7；Go 服务先按上文启动
+make web-deps
+make web-build
+make web-serve
+```
+
+打开 `http://127.0.0.1:3000`，使用后端密码登录。部署要求静态页面与 `/api` 同源，详见 [Web 接入与运行说明](clients/fladder/CILICILI.md)。
+
 ## 配置
 
 全部通过环境变量（与 LibreTV 兼容），详见 [.env.example](.env.example)：
@@ -67,6 +82,11 @@ curl -N -b /tmp/c.txt -H 'Content-Type: application/json' \
 | `DATA_DIR` | `./data` | 数据目录 |
 | `CACHE_DB` | `$DATA_DIR/cache.db` | 持久缓存文件 |
 | `USER_DB` | `$DATA_DIR/userdata.db` | 观看进度/收藏（独立于缓存） |
+| `MEDIA_DB` | `$DATA_DIR/media.db` | 媒体库（SQLite + WAL） |
+| `MEDIA_COVER_DIR` | `$DATA_DIR/covers` | 本地封面文件目录 |
+| `MEDIA_ENABLED` | `1` | 关闭后媒体聚合/刮削接口返回 501 |
+| `MEDIA_AUTO_CONFIRM` | `0` | 强匹配自动确认（默认只给候选） |
+| `BANGUMI_API_BASE` | `https://api.bgm.tv` | Bangumi 镜像地址 |
 | `SOURCES_FILE` | 空 | 源配置文件（JSON）；与 `DEFAULT_SOURCES` 二选一 |
 | `DEFAULT_SOURCES` | 空 | 点播源 JSON 数组（LibreTV 兼容） |
 | `DEFAULT_LIVE_SOURCES` | 空 | 直播源 JSON 数组 |
@@ -121,6 +141,8 @@ internal/auth/      会话/鉴权
 internal/httpx/     JSON/NDJSON 辅助
 docs/               设计与 API 文档
 configs/            源配置
+clients/fladder/    Fladder Flutter 客户端（本轮 Web）
+scripts/            Web 本地同源预览与测试
 ```
 
 ## 文档

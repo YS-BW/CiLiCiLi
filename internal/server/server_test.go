@@ -2,9 +2,13 @@ package server_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,6 +24,7 @@ import (
 	"cilicili/internal/cache"
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
+	"cilicili/internal/media"
 	"cilicili/internal/model"
 	"cilicili/internal/proxy"
 	"cilicili/internal/search"
@@ -52,24 +57,40 @@ func (f *fakeDoer) GetText(ctx context.Context, rawURL string, opts upstream.Opt
 }
 
 func body(status int, contentType, body string) *upstream.Response {
+	return bodyRaw(status, contentType, []byte(body))
+}
+
+func bodyRaw(status int, contentType string, raw []byte) *upstream.Response {
 	return &upstream.Response{
 		StatusCode: status,
 		Header:     http.Header{"Content-Type": []string{contentType}},
-		Body:       io.NopCloser(strings.NewReader(body)),
+		Body:       io.NopCloser(bytes.NewReader(raw)),
 		FinalURL:   "https://final.test/",
 	}
 }
 
+func testPNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
 func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	t.Helper()
+	pngData := testPNG(t)
 	doer := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
 		switch {
 		case strings.Contains(rawURL, "ac=videolist&ids="):
 			return body(200, "application/json", `{"code":1,"list":[{"vod_id":"1","vod_name":"庆余年","vod_play_from":"lineA$$$lineB","vod_play_url":"第1集$https://cdn.test/1.m3u8#第2集$https://cdn.test/2.m3u8$$$正片$https://cdn2.test/full.mp4"}]}`), nil
 		case strings.Contains(rawURL, "ac=videolist&wd="):
-			return body(200, "application/json", `{"code":1,"pagecount":"1","list":[{"vod_id":"1","vod_name":"庆余年","vod_pic":"https://img.test/1.jpg","type_name":"剧集"}]}`), nil
+			return body(200, "application/json", `{"code":1,"pagecount":"1","list":[{"vod_id":"1","vod_name":"庆余年","vod_pic":"https://img.test/1.jpg","type_name":"剧集","vod_year":"2019"}]}`), nil
 		case strings.HasSuffix(rawURL, ".jpg"):
-			return body(200, "image/jpeg", "jpeg-bytes"), nil
+			return bodyRaw(200, "image/png", pngData), nil
 		default:
 			return nil, errors.New("unexpected url: " + rawURL)
 		}
@@ -124,10 +145,25 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = userStore.Close() })
+	mediaStore, err := media.NewStore(filepath.Join(t.TempDir(), "media.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = mediaStore.Close() })
+	mediaMgr, err := media.NewManager(media.Config{
+		Store:     mediaStore,
+		Client:    doer,
+		CoverDir:  filepath.Join(t.TempDir(), "covers"),
+		Logger:    log,
+		CoverBase: "/api/media",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	apiHandler := api.New(api.Deps{
 		Cfg: cfg, Log: log, Auth: authMgr, Searcher: searcher, Detail: resolver,
 		Registry: registry, Cache: store, Client: doer, Proxy: proxyHandler, LiveProxy: liveHandler,
-		UserData: userStore, Version: cfg.Version,
+		UserData: userStore, Media: mediaMgr, Version: cfg.Version,
 	})
 	h := server.New(server.Deps{API: apiHandler, Cfg: cfg, Log: log, Auth: authMgr})
 	ts := httptest.NewServer(h)

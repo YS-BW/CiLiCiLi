@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"cilicili/internal/detail"
 	"cilicili/internal/httpx"
+	"cilicili/internal/media"
 	"cilicili/internal/model"
 )
 
@@ -18,6 +20,18 @@ type searchRequest struct {
 	FilterAdult *bool                `json:"filterAdult"`
 	// Fast 默认 true：只查服务端健康度最快的 N 个源；false 查全部源。
 	Fast *bool `json:"fast"`
+	// IncludeMedia 为 true 时额外返回聚合后的媒体卡片（media 字段）。
+	IncludeMedia bool `json:"includeMedia"`
+}
+
+type searchResponseWithMedia struct {
+	model.SearchResponse
+	Media []media.SearchMedia `json:"media,omitempty"`
+}
+
+type doneEventWithMedia struct {
+	model.DoneEvent
+	Media []media.SearchMedia `json:"media,omitempty"`
 }
 
 // Search 处理聚合搜索；?stream=1 时返回 NDJSON。
@@ -70,13 +84,32 @@ func (a *API) Search(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if body.IncludeMedia && a.deps.Media != nil {
+			if cards, mErr := a.deps.Media.SearchCards(resp.List, time.Now()); mErr == nil {
+				httpx.WriteJSON(w, http.StatusOK, searchResponseWithMedia{SearchResponse: resp, Media: cards})
+				return
+			} else {
+				a.deps.Log.Warn("media aggregate failed", "err", mErr)
+			}
+		}
 		httpx.WriteJSON(w, http.StatusOK, resp)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
 	nw := httpx.NewNDJSONWriter(w)
-	emit := func(ev any) error { return nw.Write(ev) }
+	emit := func(ev any) error {
+		if body.IncludeMedia && a.deps.Media != nil {
+			if done, ok := ev.(model.DoneEvent); ok {
+				if cards, mErr := a.deps.Media.SearchCards(done.List, time.Now()); mErr == nil {
+					return nw.Write(doneEventWithMedia{DoneEvent: done, Media: cards})
+				} else {
+					a.deps.Log.Warn("media aggregate failed", "err", mErr)
+				}
+			}
+		}
+		return nw.Write(ev)
+	}
 	if _, err := a.deps.Searcher.Stream(r.Context(), wd, valid, filterAdult, emit); err != nil && !errors.Is(err, r.Context().Err()) {
 		a.deps.Log.Debug("search stream ended", "error", err)
 	}

@@ -76,7 +76,8 @@ Base URL：`/api`。除特别说明外：
     {"key":"env_0","name":"暴风资源","url":"https://.../api.php/provide/vod"}
   ],
   "filterAdult": true,
-  "fast": true
+  "fast": true,
+  "includeMedia": false
 }
 ```
 
@@ -84,6 +85,8 @@ Base URL：`/api`。除特别说明外：
 - `filterAdult` 默认 `true`。
 - `fast` 默认 `true`：服务端按健康度（熔断等级 → EWMA 延迟）只查最快的 `SEARCH_FAST_SOURCES`（默认 8）个源；传 `false` 查全部源。响应头 `X-Search-Sources: 8/18` 表示实际参与/请求的源数。
 - 快速模式是首选：首源通常 < 300 ms，软截止 1.2 s，完成通常 1.2–2.5 s；全量模式用于“搜索全部源”。
+- `includeMedia` 默认 `false`：为 `true` 时，非流式响应额外返回 `media` 数组（聚合后的媒体卡片，一张影片只出现一次）；
+  流式响应的 `done` 事件会带 `media`。卡片结构见 [媒体聚合](§12)。
 - 返回（非流式，等待硬截止 6s）：
 
 ```json
@@ -368,7 +371,140 @@ Base URL：`/api`。除特别说明外：
 | --- | --- |
 | `POST /api/publish` | 发布源列表到第三方粘贴板（低优先级） |
 
-## 12. 兼容性与版本
+## 12. 媒体聚合与元数据搜刮
+
+目标：前端只接收统一的 `mediaId`、封面、简介、演职员和匹配状态，不需要知道数据来自采集站还是 Bangumi。
+采集站原始条目仍然保留（`sourceKey + vodId`），永远可回查。
+
+### 12.1 聚合规则
+
+- 聚合键：`类型 + 归一化标题 + 年份（+ 季数）`，`mediaId` 形如 `media_<16hex>`。
+- 标题归一化：去掉季数后缀（`第二季` / `第2季` / `Season 2` / `S02` / `庆余年2`）、尾部年份、标点与空白。
+- **缺年份不聚合**，类型无法判断（`other`）也不聚合；这类条目在搜索结果里用 `src:<sourceKey>:<vodId>` 单独成卡。
+- 同一作品在不同源下聚合为一张卡；`sourceCount` 表示来源数量，`sources[]` 保留每个源的 `sourceKey/vodId`。
+- 第一版不做跨类型（电影/剧集）合并；标题相同但年份/季数不同视为不同媒体。
+
+### 12.2 状态字段
+
+| 字段 | 取值 | 含义 |
+| --- | --- | --- |
+| `metadataStatus` | `idle` / `queued` / `scraping` / `done` / `failed` | 第三方元数据刮削状态；失败会退避重试（5m、10m… 上限 6h） |
+| `matchStatus` | `pending` / `suggested` / `confirmed` / `rejected` | 匹配状态；`suggested` 表示有候选但未确认 |
+
+自动确认默认关闭（`MEDIA_AUTO_CONFIRM=0`）：只有标题归一化完全一致、年份一致、综合分 ≥0.85 才会自动确认；
+否则只产生候选，等待人工确认。
+
+### 12.3 接口
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| POST | `/api/media/resolve` | 批量把采集站条目聚合成卡片；或按 `sourceKey+vodId` 查单个媒体 |
+| GET | `/api/media/{id}` | 媒体实体（元数据、来源、候选、封面、状态） |
+| GET | `/api/media/{id}/metadata-candidates?refresh=1` | 候选列表；`refresh=1` 重新排队刮削 |
+| POST | `/api/media/{id}/match` | 人工确认/拒绝/清除匹配 |
+| POST | `/api/media/{id}/cover` | 人工设置封面 URL（服务端下载校验并缓存） |
+| GET | `/api/media/{id}/cover` | **无需登录**，返回本地缓存封面图片；没有缓存时 404 |
+| POST | `/api/media/{id}/refresh-metadata` | 重新排队刮削（202） |
+
+`POST /api/media/resolve` 两种用法：
+
+```json
+{"items":[{"sourceKey":"env_0","sourceName":"暴风资源","vodId":"12345","name":"庆余年","typeName":"国产剧","year":"2019","pic":"https://..."}]}
+```
+
+→ `{"items":[SearchMedia...]}`（最多 100 条）。
+
+```json
+{"sourceKey":"env_0","vodId":"12345"}
+```
+
+→ 单个 `Media`，找不到返回 404。
+
+`GET /api/media/{id}` 响应（节选）：
+
+```json
+{
+  "id": "media_cfb94fbb2e1b3b08",
+  "kind": "tv",
+  "title": "庆余年第二季",
+  "year": "2024",
+  "metadata": {
+    "title": "庆余年第二季", "year": "2024", "overview": "", "cover": "https://...",
+    "director": "", "actors": "", "area": "", "genres": "",
+    "source": "source", "confidence": 0
+  },
+  "sources": [{"sourceKey":"360zy","sourceName":"360采集","vodId":"57767","name":"庆余年第二季","pic":"https://..."}],
+  "sourceCount": 12,
+  "cover": {
+    "url": "/api/media/media_cfb94fbb2e1b3b08/cover",
+    "localPath": "/var/lib/cilicili/covers/media_cfb94fbb2e1b3b08.jpg",
+    "hash": "96baae47187b08859e111ef9c69a32fe",
+    "width": 270, "height": 404,
+    "source": "bdzy", "reachable": true
+  },
+  "candidates": [
+    {"id":"bangumi:123","provider":"bangumi","externalId":"123","title":"庆余年 第二季","year":"2024","score":0.95,"coverUrl":"https://lain.bgm.tv/...","selected":false}
+  ],
+  "matchStatus": "suggested",
+  "metadataStatus": "done",
+  "updatedAt": 1760000000000
+}
+```
+
+`POST /api/media/{id}/match`：
+
+```json
+{"action":"confirm","provider":"bangumi","externalId":"123"}
+{"action":"reject"}
+{"action":"clear"}
+```
+
+`POST /api/media/{id}/cover`：
+
+```json
+{"url":"https://example.com/poster.jpg"}
+```
+
+- 只接受 http(s)，服务端下载并校验 `image/*`、≤8 MiB、解码宽高后落盘；失败返回 400/502。
+- 封面本地文件按 `mediaId` 命名，保存 `hash/宽高/来源`；前端不依赖外部图片域名。
+
+### 12.4 封面优先级
+
+1. 人工设置（`POST /cover`）或人工确认候选的封面；
+2. 当前媒体下采集源的有效封面（按 `sourceKey` 顺序逐个尝试下载）；
+3. 其他源（已聚合进同一媒体）的封面；
+4. 第三方候选封面（目前只有 Bangumi，覆盖动漫）；
+5. 都没有时 `/cover` 返回 404，前端显示本地占位图。
+
+搜索卡片 `media[].cover`：本地已缓存时返回 `/api/media/{id}/cover`，否则返回源站 `pic`；
+异步刮削完成后再次请求即可拿到本地封面。
+
+### 12.5 Provider 与降级
+
+| Provider | 覆盖 | 配置 |
+| --- | --- | --- |
+| Bangumi | 动漫（也接受剧集；电影/剧集暂无第三方源） | 免 key；`BANGUMI_API_BASE` 可换镜像 |
+
+- 电影/剧集目前没有第三方 provider，只使用采集站封面与元数据；搜索/详情不依赖任何 key。
+- 某个 provider 失败不影响其他 provider；全部失败才把任务标为 `failed` 并退避重试。
+- 豆瓣没有稳定公开 API，不接入，只用于人工整理候选。
+
+### 12.6 存储
+
+- SQLite + WAL：`media.db`，表 `media`、`source_items`、`metadata_candidates`、`cover_cache`、`scrape_jobs`。
+- 图片文件在 `MEDIA_COVER_DIR`（默认 `DATA_DIR/covers`），SQLite 只存路径/哈希/来源。
+- `media.db` 必须与 `cache.db` / `userdata.db` 分开（启动时校验）。
+- 原始上游 JSON 缓存仍在 bbolt；收藏/进度仍在 `userdata.db`，本次未迁移。
+
+### 12.7 前端（Fladder）接入建议
+
+1. 搜索请求带 `"includeMedia": true`，直接渲染 `media[]`；`list` 仅作旧兼容。
+2. 卡片图片用 `media[].cover`；加载失败时回退占位图，不必再猜第二张源图。
+3. 点击卡片进入详情前，可用 `POST /api/media/resolve` 或直接 `GET /api/media/{id}` 拿统一元数据。
+4. 播放仍走 `GET /api/detail`（`sourceKey/vodId` 从 `media.sources[]` 选）；媒体库不替代播放解析。
+5. 管理页可展示 `candidates`，调用 `match` 人工确认；封面可手工粘贴 URL。
+
+## 13. 兼容性与版本
 
 - 路径保持 `/api/...`，与 LibreTV 前端大体兼容；新增字段只增不改。
 - 破坏性变更走 `/api/v2` 或新增字段 + 客户端适配。

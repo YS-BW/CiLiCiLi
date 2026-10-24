@@ -15,10 +15,16 @@ import (
 // Config 是服务端的全部运行配置。所有字段都可以通过环境变量覆盖，
 // 环境变量名与 LibreTV 保持兼容，便于平滑迁移。
 type Config struct {
-	Listen    string
-	DataDir   string
-	CachePath string
-	UserDB    string
+	Listen           string
+	DataDir          string
+	CachePath        string
+	UserDB           string
+	MediaDB          string
+	MediaCoverDir    string
+	MediaCoverBase   string
+	MediaEnabled     bool
+	MediaAutoConfirm bool
+	BangumiAPIBase   string
 
 	Version     string
 	Password    string
@@ -66,14 +72,20 @@ type Config struct {
 func Load() (*Config, error) {
 	dataDir := envString("DATA_DIR", "./data")
 	cfg := &Config{
-		Listen:      envString("LISTEN", ":8080"),
-		DataDir:     dataDir,
-		CachePath:   envString("CACHE_DB", filepath.Join(dataDir, "cache.db")),
-		UserDB:      envString("USER_DB", filepath.Join(dataDir, "userdata.db")),
-		Version:     envString("APP_VERSION", "dev"),
-		Password:    os.Getenv("PASSWORD"),
-		ProxySecret: os.Getenv("PROXY_SECRET"),
-		TokenTTL:    envDuration("TOKEN_TTL", 90*24*time.Hour),
+		Listen:           envString("LISTEN", ":8080"),
+		DataDir:          dataDir,
+		CachePath:        envString("CACHE_DB", filepath.Join(dataDir, "cache.db")),
+		UserDB:           envString("USER_DB", filepath.Join(dataDir, "userdata.db")),
+		MediaDB:          envString("MEDIA_DB", filepath.Join(dataDir, "media.db")),
+		MediaCoverDir:    envString("MEDIA_COVER_DIR", filepath.Join(dataDir, "covers")),
+		MediaCoverBase:   envString("MEDIA_COVER_BASE", "/api/media"),
+		MediaEnabled:     envBool("MEDIA_ENABLED", true),
+		MediaAutoConfirm: envBool("MEDIA_AUTO_CONFIRM", false),
+		BangumiAPIBase:   envString("BANGUMI_API_BASE", "https://api.bgm.tv"),
+		Version:          envString("APP_VERSION", "dev"),
+		Password:         os.Getenv("PASSWORD"),
+		ProxySecret:      os.Getenv("PROXY_SECRET"),
+		TokenTTL:         envDuration("TOKEN_TTL", 90*24*time.Hour),
 		UserAgent: envString("USER_AGENT",
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
 		RequestTimeout: envDuration("REQUEST_TIMEOUT", 8*time.Second),

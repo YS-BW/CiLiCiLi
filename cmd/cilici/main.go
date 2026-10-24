@@ -21,6 +21,8 @@ import (
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
 	"cilicili/internal/live"
+	"cilicili/internal/media"
+	"cilicili/internal/providers"
 	"cilicili/internal/proxy"
 	"cilicili/internal/quality"
 	"cilicili/internal/recommend"
@@ -73,6 +75,13 @@ func run() error {
 	}
 	if cfg.UserDB != "" && filepath.Clean(cfg.UserDB) == filepath.Clean(cfg.CachePath) {
 		return fmt.Errorf("USER_DB 不能与 CACHE_DB 相同（bbolt 单进程独占）")
+	}
+	if cfg.MediaDB != "" {
+		for _, other := range []string{cfg.CachePath, cfg.UserDB} {
+			if other != "" && filepath.Clean(cfg.MediaDB) == filepath.Clean(other) {
+				return fmt.Errorf("MEDIA_DB 不能与其他数据库文件相同")
+			}
+		}
 	}
 
 	store, err := cache.New(cache.Config{
@@ -171,6 +180,31 @@ func run() error {
 		Timeout: cfg.RequestTimeout,
 	})
 
+	var mediaMgr *media.Manager
+	if cfg.MediaEnabled {
+		mediaStore, err := media.NewStore(cfg.MediaDB)
+		if err != nil {
+			return fmt.Errorf("打开媒体库失败: %w", err)
+		}
+		defer mediaStore.Close()
+		providerList := []media.Provider{providers.NewBangumi(client, cfg.BangumiAPIBase)}
+		mediaMgr, err = media.NewManager(media.Config{
+			Store:       mediaStore,
+			Client:      client,
+			Providers:   providerList,
+			CoverDir:    cfg.MediaCoverDir,
+			Logger:      log,
+			CoverBase:   cfg.MediaCoverBase,
+			AutoConfirm: cfg.MediaAutoConfirm,
+		})
+		if err != nil {
+			return fmt.Errorf("初始化媒体库失败: %w", err)
+		}
+		mediaMgr.Start(context.Background())
+		defer mediaMgr.Stop()
+		log.Info("media library enabled", "db", cfg.MediaDB, "covers", cfg.MediaCoverDir)
+	}
+
 	authMgr := auth.New(cfg.Password, cfg.ProxySecret, cfg.TokenTTL)
 
 	proxyHandler := proxy.New(proxy.Options{
@@ -208,6 +242,7 @@ func run() error {
 		Recommend: recommendFetcher,
 		Subscribe: subscribeFetcher,
 		UserData:  userStore,
+		Media:     mediaMgr,
 		Version:   cfg.Version,
 	})
 

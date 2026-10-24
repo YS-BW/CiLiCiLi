@@ -23,3 +23,13 @@ coverage.out
 /web/node_modules/
 /web/dist/
 /web/.next/
+
+# Python tooling
+__pycache__/
+
+# 客户端仓库（Fladder 等，体积大，单独管理）
+/clients/
+
+# Python 工具缓存
+__pycache__/
+*.pyc

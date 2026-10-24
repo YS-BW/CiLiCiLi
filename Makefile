@@ -12,6 +12,7 @@ help:
 	@echo "make race    # go test -race ./..."
 	@echo "make linux   # 交叉编译 linux/amd64 到 bin/$(APP)-linux-amd64"
 	@echo "make vet/fmt/tidy"
+	@echo "make web-deps/web-build/web-test/web-test-browser/web-serve # Flutter 3.35.7"
 
 build:
 	@mkdir -p bin
@@ -41,3 +42,24 @@ linux:
 
 clean:
 	rm -rf bin
+
+# Fladder v0.11.1 uses Flutter 3.35.7 (clients/fladder/.fvmrc).
+FLUTTER ?= flutter
+.PHONY: web-deps web-build web-test web-serve
+web-deps:
+	cd clients/fladder && $(FLUTTER) pub get
+
+web-build:
+	cd clients/fladder && $(FLUTTER) build web --no-wasm-dry-run --no-web-resources-cdn --pwa-strategy=none
+
+web-test:
+	cd clients/fladder && $(FLUTTER) test test/cilicili_client_test.dart test/films_test.dart test/catalog_cache_test.dart test/font_theme_test.dart test/cilicili_settings_test.dart test/cilicili_catalog_test.dart test/cilicili_logout_test.dart
+	python3 scripts/test_serve_web.py
+
+web-serve:
+	python3 scripts/serve_web.py
+
+# Requires Chrome; exercises the Web-only HLS bridge without external video sources.
+.PHONY: web-test-browser
+web-test-browser:
+	cd clients/fladder && $(FLUTTER) test --platform chrome test/web_hls_test.dart test/catalog_cache_test.dart test/cilicili_settings_test.dart test/web_route_test.dart test/cilicili_logout_test.dart test/cilicili_catalog_test.dart
