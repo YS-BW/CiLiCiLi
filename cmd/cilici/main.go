@@ -29,6 +29,7 @@ import (
 	"cilicili/internal/search"
 	"cilicili/internal/server"
 	"cilicili/internal/source"
+	"cilicili/internal/sources"
 	"cilicili/internal/subscribe"
 	"cilicili/internal/upstream"
 	"cilicili/internal/userdata"
@@ -111,7 +112,19 @@ func run() error {
 	}
 	defer health.Close()
 
-	registry := source.NewRegistry(cfg.DefaultSources, health)
+	sourceStore, err := sources.New(cfg.SourcesDB)
+	if err != nil {
+		return fmt.Errorf("打开源配置库失败: %w", err)
+	}
+	defer sourceStore.Close()
+	if err := sourceStore.Seed(cfg.DefaultSources); err != nil {
+		return fmt.Errorf("导入默认源失败: %w", err)
+	}
+	enabledSources, err := sourceStore.ListEnabled()
+	if err != nil {
+		return fmt.Errorf("读取源配置失败: %w", err)
+	}
+	registry := source.NewRegistry(enabledSources, health)
 
 	client, err := upstream.New(upstream.Config{
 		UserAgent:             cfg.UserAgent,
@@ -246,6 +259,7 @@ func run() error {
 		Recommend: recommendFetcher,
 		Subscribe: subscribeFetcher,
 		UserData:  userStore,
+		Sources:   sourceStore,
 		Media:     mediaMgr,
 		Version:   cfg.Version,
 	})

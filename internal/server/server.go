@@ -38,8 +38,19 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/search", guard(d.API.Search))
 	mux.HandleFunc("GET /api/detail", guard(d.API.Detail))
 	mux.HandleFunc("GET /api/sources", guard(d.API.Sources))
+	mux.HandleFunc("POST /api/sources", guard(d.API.SourceCreate))
 	mux.HandleFunc("POST /api/sources/test", guard(d.API.SourceTest))
 	mux.HandleFunc("POST /api/sources/reset", guard(d.API.ResetSource))
+	mux.HandleFunc("POST /api/sources/reorder", guard(d.API.SourceReorder))
+	mux.HandleFunc("PUT /api/sources/{key}", guard(d.API.SourceUpdate))
+	mux.HandleFunc("DELETE /api/sources/{key}", guard(d.API.SourceDelete))
+
+	mux.HandleFunc("GET /api/subscriptions", guard(d.API.Subscriptions))
+	mux.HandleFunc("POST /api/subscriptions", guard(d.API.SubscriptionCreate))
+	mux.HandleFunc("PUT /api/subscriptions/{id}", guard(d.API.SubscriptionUpdate))
+	mux.HandleFunc("DELETE /api/subscriptions/{id}", guard(d.API.SubscriptionDelete))
+	mux.HandleFunc("POST /api/subscriptions/{id}/refresh", guard(d.API.SubscriptionRefresh))
+	mux.HandleFunc("POST /api/subscriptions/{id}/apply", guard(d.API.SubscriptionApply))
 	mux.HandleFunc("GET /api/metrics", guard(d.API.Metrics))
 
 	// 观看进度与收藏（第一版默认用户）

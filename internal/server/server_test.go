@@ -30,6 +30,7 @@ import (
 	"cilicili/internal/search"
 	"cilicili/internal/server"
 	"cilicili/internal/source"
+	"cilicili/internal/sources"
 	"cilicili/internal/upstream"
 	"cilicili/internal/userdata"
 )
@@ -127,7 +128,19 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	authMgr := auth.New(cfg.Password, "secret", time.Hour)
-	registry := source.NewRegistry(cfg.DefaultSources, health)
+	sourceStore, err := sources.New(filepath.Join(t.TempDir(), "sources.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sourceStore.Close() })
+	if err := sourceStore.Seed(cfg.DefaultSources); err != nil {
+		t.Fatal(err)
+	}
+	enabledSources, err := sourceStore.ListEnabled()
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := source.NewRegistry(enabledSources, health)
 	searcher := search.New(doer, store, health, log, search.Config{
 		MaxPages: 1, SourceTimeout: time.Second, PageTimeout: time.Second,
 		SoftDeadline: 100 * time.Millisecond, HardDeadline: time.Second,
@@ -163,12 +176,25 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	apiHandler := api.New(api.Deps{
 		Cfg: cfg, Log: log, Auth: authMgr, Searcher: searcher, Detail: resolver,
 		Registry: registry, Cache: store, Client: doer, Proxy: proxyHandler, LiveProxy: liveHandler,
-		UserData: userStore, Media: mediaMgr, Version: cfg.Version,
+		UserData: userStore, Media: mediaMgr, Sources: sourceStore,
+		Subscribe: fakeSubscribe{}, Version: cfg.Version,
 	})
 	h := server.New(server.Deps{API: apiHandler, Cfg: cfg, Log: log, Auth: authMgr})
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
 	return ts, authMgr
+}
+
+type fakeSubscribe struct{}
+
+func (fakeSubscribe) Fetch(_ context.Context, rawURL string) (*model.SourceListPayload, error) {
+	return &model.SourceListPayload{
+		Name: "测试订阅",
+		Sources: []model.SourceConfig{
+			{Key: "sub_aaa", Name: "订阅源A", URL: "https://sub-a.test/api.php/provide/vod"},
+			{Key: "sub_bbb", Name: "订阅源B", URL: "https://sub-b.test/api.php/provide/vod"},
+		},
+	}, nil
 }
 
 func login(t *testing.T, ts *httptest.Server) string {

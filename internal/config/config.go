@@ -19,6 +19,7 @@ type Config struct {
 	DataDir          string
 	CachePath        string
 	UserDB           string
+	SourcesDB        string
 	MediaDB          string
 	MediaCoverDir    string
 	MediaCoverBase   string
@@ -78,6 +79,7 @@ func Load() (*Config, error) {
 		DataDir:          dataDir,
 		CachePath:        envString("CACHE_DB", filepath.Join(dataDir, "cache.db")),
 		UserDB:           envString("USER_DB", filepath.Join(dataDir, "userdata.db")),
+		SourcesDB:        envString("SOURCES_DB", filepath.Join(dataDir, "sources.db")),
 		MediaDB:          envString("MEDIA_DB", filepath.Join(dataDir, "media.db")),
 		MediaCoverDir:    envString("MEDIA_COVER_DIR", filepath.Join(dataDir, "covers")),
 		MediaCoverBase:   envString("MEDIA_COVER_BASE", "/api/media"),

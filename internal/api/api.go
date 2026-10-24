@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"runtime"
@@ -20,10 +21,15 @@ import (
 	"cilicili/internal/recommend"
 	"cilicili/internal/search"
 	"cilicili/internal/source"
-	"cilicili/internal/subscribe"
+	"cilicili/internal/sources"
 	"cilicili/internal/upstream"
 	"cilicili/internal/userdata"
 )
+
+// SubscriptionFetcher 拉取并解析远程源订阅（便于测试注入假实现）。
+type SubscriptionFetcher interface {
+	Fetch(ctx context.Context, rawURL string) (*model.SourceListPayload, error)
+}
 
 // Deps 是 API 层的依赖。
 type Deps struct {
@@ -40,8 +46,9 @@ type Deps struct {
 	Quality   *quality.Prober
 	Live      *live.Service
 	Recommend *recommend.Fetcher
-	Subscribe *subscribe.Fetcher
+	Subscribe SubscriptionFetcher
 	UserData  *userdata.Store
+	Sources   *sources.Store
 	Media     *media.Manager
 	Version   string
 }
@@ -154,9 +161,18 @@ func (a *API) Logout(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 
-// Sources 返回源列表与服务端健康快照。
+// Sources 返回源列表（含禁用/排序）与服务端健康快照。
 func (a *API) Sources(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
+	if a.deps.Sources != nil {
+		if list, err := a.deps.Sources.List(); err == nil {
+			httpx.WriteJSON(w, http.StatusOK, map[string]any{
+				"sources": list,
+				"health":  a.deps.Registry.Health().Snapshot(now),
+			})
+			return
+		}
+	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"sources": a.deps.Registry.List(),
 		"health":  a.deps.Registry.Health().Snapshot(now),
