@@ -970,3 +970,30 @@ func TestDoubanImageNoFallbackWhenImage(t *testing.T) {
 		t.Fatalf("上游调用次数 = %d, want 1", got)
 	}
 }
+
+// 图片失败后短时间内直接快速失败，不再重复等待上游超时。
+func TestImageFailureNegativeCache(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
+		return nil, errors.New("dial tcp: i/o timeout")
+	}}
+	h := New(Options{Client: client})
+	target := "https://dead.example.com/cover/deadbeef.jpg"
+	first := httptest.NewRecorder()
+	h.ServeHTTP(first, proxyRequest(http.MethodGet, target))
+	if first.Code != http.StatusBadGateway {
+		t.Fatalf("first code = %d", first.Code)
+	}
+	if client.count() != 1 {
+		t.Fatalf("upstream calls = %d", client.count())
+	}
+	second := httptest.NewRecorder()
+	h.ServeHTTP(second, proxyRequest(http.MethodGet, target))
+	if second.Code != http.StatusBadGateway {
+		t.Fatalf("second code = %d", second.Code)
+	}
+	if client.count() != 1 {
+		t.Fatalf("命中失败缓存后不应再访问上游，calls = %d", client.count())
+	}
+}

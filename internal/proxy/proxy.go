@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"cilicili/internal/m3u8"
@@ -42,7 +43,69 @@ const (
 	// doubanImageMirrorHost 是豆瓣图片的镜像（60s API 提供）。豆瓣 WAF 会对
 	// Go 的 TLS 指纹返回 200 + JS 挑战页，导致封面空白；镜像可作为兜底。
 	doubanImageMirrorHost = "doubanio.viki.moe"
+
+	// imageFailTTL 是图片失败结果的短缓存：源站图床挂掉时不要每次翻页都
+	// 卡 3–6 秒超时，后续请求直接快速失败，前端立刻显示占位图。
+	imageFailTTL = 10 * time.Minute
 )
+
+// imageFailCache 是每个代理实例独立的图片失败短缓存（按完整 URL 记录）。
+type imageFailCache struct {
+	mu    sync.Mutex
+	until map[string]time.Time
+}
+
+func newImageFailCache() *imageFailCache {
+	return &imageFailCache{until: make(map[string]time.Time)}
+}
+
+func (c *imageFailCache) recently(rawURL string) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	until, ok := c.until[rawURL]
+	if !ok {
+		return false
+	}
+	if time.Now().After(until) {
+		delete(c.until, rawURL)
+		return false
+	}
+	return true
+}
+
+func (c *imageFailCache) mark(rawURL string) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.until) > 4096 {
+		now := time.Now()
+		for k, v := range c.until {
+			if now.After(v) {
+				delete(c.until, k)
+			}
+		}
+	}
+	c.until[rawURL] = time.Now().Add(imageFailTTL)
+}
+
+// looksLikeImage 按路径后缀判断是否图片请求（用于失败短缓存）。
+func looksLikeImage(u *url.URL) bool {
+	if u == nil {
+		return false
+	}
+	path := strings.ToLower(u.Path)
+	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp"} {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
+}
 
 var (
 	// doubanRefererHosts 是需要伪装 Referer 的豆瓣域（精确后缀匹配）。
@@ -53,15 +116,20 @@ var (
 // proxyHandler 同时服务点播代理与直播流代理，两者只在超时、重试、
 // 内网放行与缓存策略上不同。
 type proxyHandler struct {
-	opts Options
-	live bool
+	opts      Options
+	live      bool
+	imageFail *imageFailCache
 }
 
 // New 构造点播/图片流式代理。
-func New(opts Options) http.Handler { return &proxyHandler{opts: opts} }
+func New(opts Options) http.Handler {
+	return &proxyHandler{opts: opts, imageFail: newImageFailCache()}
+}
 
 // NewLive 构造直播长连接代理：只限制响应头等待时间，body 不限时。
-func NewLive(opts Options) http.Handler { return &proxyHandler{opts: opts, live: true} }
+func NewLive(opts Options) http.Handler {
+	return &proxyHandler{opts: opts, live: true, imageFail: newImageFailCache()}
+}
 
 func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -160,6 +228,12 @@ func (h *proxyHandler) forward(w http.ResponseWriter, r *http.Request, target *u
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	isImage := !h.live && r.Method == http.MethodGet && looksLikeImage(target)
+	if isImage && h.imageFail.recently(target.String()) {
+		h.writeError(w, http.StatusBadGateway, "封面不可用")
+		return
+	}
+
 	upstreamOpts := h.upstreamOptions(r, target)
 	resp, err := h.opts.Client.Do(ctx, target.String(), upstreamOpts)
 	if err != nil {
@@ -170,11 +244,17 @@ func (h *proxyHandler) forward(w http.ResponseWriter, r *http.Request, target *u
 			h.writeError(w, http.StatusForbidden, "目标地址不允许访问")
 			return
 		}
+		if isImage {
+			h.imageFail.mark(target.String())
+		}
 		h.debug("proxy 上游请求失败", "method", r.Method, "err", err)
 		h.writeError(w, http.StatusBadGateway, "代理请求失败")
 		return
 	}
 	if resp == nil {
+		if isImage {
+			h.imageFail.mark(target.String())
+		}
 		h.writeError(w, http.StatusBadGateway, "代理请求失败")
 		return
 	}
@@ -189,6 +269,9 @@ func (h *proxyHandler) forward(w http.ResponseWriter, r *http.Request, target *u
 				resp = mresp
 			} else {
 				h.debug("豆瓣图片镜像兜底失败", "url", target.String(), "err", merr)
+				if isImage {
+					h.imageFail.mark(target.String())
+				}
 				h.writeError(w, http.StatusBadGateway, "封面获取失败")
 				return
 			}
@@ -206,6 +289,10 @@ func (h *proxyHandler) forward(w http.ResponseWriter, r *http.Request, target *u
 	if m3u8.IsPlaylist(contentType, target.String()) || m3u8.IsPlaylist(contentType, finalURL) {
 		h.servePlaylist(w, r, resp, finalURL)
 		return
+	}
+	if isImage && !isImageContentType(contentType) {
+		// 图床返回 HTML/空体：缓存失败，避免反复等待。
+		h.imageFail.mark(target.String())
 	}
 	h.serveStream(w, r, resp)
 }
