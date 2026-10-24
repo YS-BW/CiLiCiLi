@@ -79,6 +79,12 @@ type Discoverer struct {
 	mu     sync.Mutex
 	cached *Result
 	at     time.Time
+	sync   func() // 自动添加后通知 Registry 热更新
+
+	started bool
+	stopCh  chan struct{}
+	doneCh  chan struct{}
+	running bool
 }
 
 // New 创建发现器；seeds 为空时使用 DefaultSeeds。
@@ -97,7 +103,7 @@ func New(client upstream.Doer, fetcher SubscriptionFetcher, prober *probe.Prober
 		clean = append(clean, DefaultSeeds...)
 	}
 	return &Discoverer{client: client, fetcher: fetcher, prober: prober, store: store, log: log,
-		seeds: clean, timeout: 10 * time.Minute}
+		seeds: clean, timeout: 10 * time.Minute, stopCh: make(chan struct{}), doneCh: make(chan struct{})}
 }
 
 // Cached 返回最近一次发现结果（用于 apply 校验存活）。
@@ -262,6 +268,149 @@ func parseTextList(text string) []model.SourceConfig {
 	return out
 }
 
+// Start 启动服务端自动发现循环：默认每 7 天跑一次，只把存活的新源写进源列表。
+// sync 用于自动添加后热替换 Registry。
+func (d *Discoverer) Start(ctx context.Context, sync func()) {
+	d.mu.Lock()
+	if d.started {
+		d.mu.Unlock()
+		return
+	}
+	d.started = true
+	d.sync = sync
+	d.mu.Unlock()
+	go d.loop(ctx)
+}
+
+func (d *Discoverer) loop(ctx context.Context) {
+	defer close(d.doneCh)
+	interval := d.interval()
+	last := int64(0)
+	if d.store != nil {
+		last = d.store.DiscoverLastAt()
+	}
+	if last == 0 || time.Since(time.UnixMilli(last)) >= interval {
+		d.runOnce(ctx)
+	}
+	for {
+		wait := d.interval()
+		if last := d.store.DiscoverLastAt(); last > 0 {
+			if remain := time.Until(time.UnixMilli(last).Add(wait)); remain > 0 {
+				wait = remain
+			} else {
+				wait = 0
+			}
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-d.stopCh:
+			timer.Stop()
+			return
+		case <-timer.C:
+			d.runOnce(ctx)
+		}
+	}
+}
+
+func (d *Discoverer) interval() time.Duration {
+	if d.store == nil {
+		return 7 * 24 * time.Hour
+	}
+	if v, err := d.store.DiscoverInterval(); err == nil {
+		return v
+	}
+	return 7 * 24 * time.Hour
+}
+
+// Stop 停止自动发现循环。
+func (d *Discoverer) Stop() {
+	d.mu.Lock()
+	started := d.started
+	d.started = false
+	d.mu.Unlock()
+	if !started {
+		return
+	}
+	close(d.stopCh)
+	<-d.doneCh
+}
+
+// runOnce 执行一次发现，并自动添加存活且不在黑名单里的新源。
+func (d *Discoverer) runOnce(ctx context.Context) *Result {
+	d.mu.Lock()
+	if d.running {
+		d.mu.Unlock()
+		return nil
+	}
+	d.running = true
+	d.mu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		d.running = false
+		d.mu.Unlock()
+	}()
+
+	result := d.Run(ctx, true)
+	if result == nil {
+		return nil
+	}
+	alive := make([]Candidate, 0, len(result.Candidates))
+	for _, c := range result.Candidates {
+		if c.Alive && !c.Exists {
+			alive = append(alive, c)
+		}
+	}
+	const maxAutoAdd = 20
+	if len(alive) > maxAutoAdd {
+		alive = alive[:maxAutoAdd]
+	}
+	added, skipped, err := d.Apply(ctx, alive)
+	if err != nil {
+		if d.log != nil {
+			d.log.Warn("auto discover apply failed", "err", err)
+		}
+		return result
+	}
+	if d.store != nil {
+		_ = d.store.SetDiscoverResult(time.Now().UnixMilli(), added)
+	}
+	d.mu.Lock()
+	sync := d.sync
+	d.mu.Unlock()
+	if added > 0 && sync != nil {
+		sync()
+	}
+	if d.log != nil {
+		d.log.Info("auto discover finished", "candidates", result.Total, "alive", result.Alive,
+			"added", added, "skipped", skipped, "intervalHours", int(d.interval().Hours()))
+	}
+	return result
+}
+
+// Status 返回自动发现状态（供 API/排障）。
+type Status struct {
+	IntervalHours int   `json:"intervalHours"`
+	LastAt        int64 `json:"lastAt"`
+	LastAdded     int   `json:"lastAdded"`
+	Running       bool  `json:"running"`
+}
+
+// Status 返回自动发现状态。
+func (d *Discoverer) Status() Status {
+	st := Status{IntervalHours: int(d.interval().Hours())}
+	if d.store != nil {
+		st.LastAt = d.store.DiscoverLastAt()
+		st.LastAdded = d.store.DiscoverLastAdded()
+	}
+	d.mu.Lock()
+	st.Running = d.running
+	d.mu.Unlock()
+	return st
+}
+
 // Apply 把存活且不存在的候选写入源列表。
 func (d *Discoverer) Apply(ctx context.Context, candidates []Candidate) (added, skipped int, err error) {
 	if d.store == nil {
@@ -275,9 +424,15 @@ func (d *Discoverer) Apply(ctx context.Context, candidates []Candidate) (added, 
 	for _, src := range list {
 		existing[src.URL] = true
 	}
+	blocked := map[string]bool{}
+	if d.store != nil {
+		if b, err := d.store.BlockedURLs(); err == nil {
+			blocked = b
+		}
+	}
 	for _, c := range candidates {
 		norm, normErr := sources.NormalizeURL(c.URL)
-		if normErr != nil || existing[norm] {
+		if normErr != nil || existing[norm] || blocked[norm] {
 			skipped++
 			continue
 		}

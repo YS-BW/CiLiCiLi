@@ -257,6 +257,53 @@ Base URL：`/api`。除特别说明外：
 {"key":"env_0"}
 ```
 
+### GET /api/sources/probe / POST /api/sources/probe
+
+源探活（服务端定期静默执行，默认每 12 小时）。
+
+`GET` 返回状态：
+
+```json
+{
+  "intervalHours": 12,
+  "running": false,
+  "last": {
+    "startedAt": 1792828700000,
+    "finishedAt": 1792828710000,
+    "total": 23,
+    "alive": 16,
+    "dead": 7,
+    "items": [{"key":"env_0","name":"暴风资源","url":"https://...","ok":true,"ms":831,"count":20}]
+  },
+  "discover": {"intervalHours":168,"lastAt":1792828734986,"lastAdded":5,"running":false}
+}
+```
+
+`POST` 修改间隔或立即触发：
+
+```json
+{"intervalHours": 6}
+{"run": true}
+```
+
+- 探活失败会走现有熔断（连续 2 次 → 30 分钟 → 24 小时 → 长期停用）；
+- **只有存活（未熔断）的源会真正参与搜索**：搜索前按健康状态过滤，死源不会计入 `X-Search-Sources`；
+- 探活间隔持久化在 `SOURCES_DB`，1–168 小时。
+
+### 自动发现新源（服务端）
+
+服务端每隔 **7 天**（`discover_interval_days`，默认 7，可改库/环境变量）自动执行一次：
+
+1. 抓取内置发现渠道（可用 `DISCOVER_SOURCES` 覆盖，逗号分隔）；
+   默认走 jsDelivr 镜像（`raw.githubusercontent.com` 在国内/VPS 不可达）：
+   - `https://cdn.jsdelivr.net/gh/muzheya/tvbox-config@main/tvbox-diy.json`（纯 API 采集源）
+   - `https://cdn.jsdelivr.net/gh/YH-Music/vod-sources@main/vod.b64`（苹果CMS 接口清单）
+2. 解析出候选源，与现有源按 URL 去重；
+3. 并发探活，**只自动写入存活的新源**（每轮最多 20 个），并热替换 Registry；
+4. 用户删除过的源会进入黑名单（`blocked_sources`），自动发现不会再把它加回来；手动重新添加会解除黑名单。
+
+无需前端参与；启动时若距上次发现超过间隔会立即跑一次。
+
 ### POST /api/sources/test
 
 ```json

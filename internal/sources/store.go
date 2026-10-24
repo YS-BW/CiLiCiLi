@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS sources (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url ON sources(url);
 
+CREATE TABLE IF NOT EXISTS blocked_sources (
+  url        TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL DEFAULT ''
@@ -252,6 +257,9 @@ func (s *Store) CreateWithEnabled(src Source, enabled bool) (*Source, error) {
 	if key == "" {
 		key = NewKey(normURL)
 	}
+	if err := s.UnblockURL(normURL); err != nil {
+		return nil, err
+	}
 	now := s.now().UnixMilli()
 	var nextOrder int
 	_ = s.db.QueryRow(`SELECT COALESCE(MAX(sort_order)+1,0) FROM sources`).Scan(&nextOrder)
@@ -304,8 +312,12 @@ func (s *Store) Update(key string, patch SourcePatch) (*Source, error) {
 	return s.Get(key)
 }
 
-// Delete 删除源。
+// Delete 删除源，并把 URL 记入黑名单：自动发现不会再把用户删掉的源加回来。
 func (s *Store) Delete(key string) error {
+	src, err := s.Get(key)
+	if err != nil {
+		return err
+	}
 	res, err := s.db.Exec(`DELETE FROM sources WHERE key=?`, key)
 	if err != nil {
 		return err
@@ -314,7 +326,48 @@ func (s *Store) Delete(key string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
+	_, _ = s.db.Exec(`INSERT INTO blocked_sources (url, created_at) VALUES (?,?)
+		ON CONFLICT(url) DO NOTHING`, src.URL, s.now().UnixMilli())
 	return nil
+}
+
+// BlockURL 把 URL 加入黑名单（删除源时自动调用）。
+func (s *Store) BlockURL(rawURL string) error {
+	norm, err := NormalizeURL(rawURL)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`INSERT INTO blocked_sources (url, created_at) VALUES (?,?)
+		ON CONFLICT(url) DO NOTHING`, norm, s.now().UnixMilli())
+	return err
+}
+
+// UnblockURL 从黑名单移除（用户手动重新添加时调用）。
+func (s *Store) UnblockURL(rawURL string) error {
+	norm, err := NormalizeURL(rawURL)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`DELETE FROM blocked_sources WHERE url=?`, norm)
+	return err
+}
+
+// BlockedURLs 返回全部黑名单 URL。
+func (s *Store) BlockedURLs() (map[string]bool, error) {
+	rows, err := s.db.Query(`SELECT url FROM blocked_sources`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]bool, 32)
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return nil, err
+		}
+		out[u] = true
+	}
+	return out, rows.Err()
 }
 
 // Reorder 按给定 key 顺序重排；未列出的源保持原相对顺序排在后面。
@@ -375,6 +428,53 @@ func (s *Store) SetSetting(key, value string) error {
 	_, err := s.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?)
 		ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
 	return err
+}
+
+// DiscoverInterval 读取自动发现间隔（默认 7 天）。
+func (s *Store) DiscoverInterval() (time.Duration, error) {
+	raw, err := s.GetSetting("discover_interval_days", "7")
+	if err != nil {
+		return 7 * 24 * time.Hour, err
+	}
+	days, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || days < 1 || days > 90 {
+		return 7 * 24 * time.Hour, nil
+	}
+	return time.Duration(days) * 24 * time.Hour, nil
+}
+
+// DiscoverLastAt 返回上次自动发现时间（Unix 毫秒）。
+func (s *Store) DiscoverLastAt() int64 {
+	raw, err := s.GetSetting("discover_last_at", "0")
+	if err != nil {
+		return 0
+	}
+	ms, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return ms
+}
+
+// SetDiscoverResult 记录一次自动发现的时间与新增数量。
+func (s *Store) SetDiscoverResult(at int64, added int) error {
+	if err := s.SetSetting("discover_last_at", strconv.FormatInt(at, 10)); err != nil {
+		return err
+	}
+	return s.SetSetting("discover_last_added", strconv.Itoa(added))
+}
+
+// DiscoverLastAdded 返回上次自动发现新增的源数量。
+func (s *Store) DiscoverLastAdded() int {
+	raw, err := s.GetSetting("discover_last_added", "0")
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // ProbeInterval 读取探活间隔（默认 12h）。

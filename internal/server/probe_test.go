@@ -3,7 +3,6 @@ package server_test
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 )
@@ -66,71 +65,4 @@ func TestSourceProbeStatusAndConfig(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf("probe did not finish: %s", data)
-}
-
-func TestDiscoverAndApply(t *testing.T) {
-	ts, _ := newTestServer(t)
-	token := login(t, ts)
-
-	status, data := doJSON(t, ts, http.MethodGet, "/api/sources/discover", token, nil)
-	if status != http.StatusOK {
-		t.Fatalf("discover = %d %s", status, data)
-	}
-	var result struct {
-		Candidates []struct {
-			Name   string `json:"name"`
-			URL    string `json:"url"`
-			Alive  bool   `json:"alive"`
-			Exists bool   `json:"exists"`
-		} `json:"candidates"`
-		Alive    int `json:"alive"`
-		NewAlive int `json:"newAlive"`
-	}
-	if err := json.Unmarshal(data, &result); err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Candidates) < 2 || result.Alive < 2 || result.NewAlive < 2 {
-		t.Fatalf("discover result = %s", data)
-	}
-	var picked []map[string]any
-	for _, c := range result.Candidates {
-		if c.Alive && !strings.Contains(c.URL, "sub-a.test") {
-			continue
-		}
-		if c.Alive {
-			picked = append(picked, map[string]any{"name": c.Name, "url": c.URL})
-		}
-	}
-	if len(picked) == 0 {
-		t.Fatalf("no alive candidate: %s", data)
-	}
-
-	status, data = doJSON(t, ts, http.MethodPost, "/api/sources/discover/apply", token, map[string]any{"sources": picked})
-	if status != http.StatusOK {
-		t.Fatalf("apply = %d %s", status, data)
-	}
-	var applied struct {
-		Added int `json:"added"`
-	}
-	if err := json.Unmarshal(data, &applied); err != nil {
-		t.Fatal(err)
-	}
-	if applied.Added == 0 {
-		t.Fatalf("apply = %s", data)
-	}
-
-	// 再应用一次应全部跳过
-	_, data = doJSON(t, ts, http.MethodPost, "/api/sources/discover/apply", token, map[string]any{"sources": picked})
-	if err := json.Unmarshal(data, &applied); err != nil {
-		t.Fatal(err)
-	}
-	if applied.Added != 0 {
-		t.Fatalf("second apply = %s", data)
-	}
-
-	// Registry 同步
-	_, data = doJSON(t, ts, http.MethodGet, "/api/status", token, nil)
-	if !strings.Contains(string(data), "sub-a.test") {
-		t.Fatalf("registry not synced: %s", data)
-	}
 }

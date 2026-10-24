@@ -162,3 +162,29 @@ func TestNormalizeURLAndKey(t *testing.T) {
 		t.Fatal("different urls should have different keys")
 	}
 }
+
+func TestDeleteBlocksURLAndReaddUnblocks(t *testing.T) {
+	s := newTestStore(t)
+	src, err := s.Create(Source{SourceConfig: model.SourceConfig{Name: "自动发现的源", URL: "https://auto.test/api.php/provide/vod"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Delete(src.Key); err != nil {
+		t.Fatal(err)
+	}
+	blocked, err := s.BlockedURLs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !blocked[src.URL] {
+		t.Fatalf("deleted source url should be blocked: %+v", blocked)
+	}
+	// 手动重新添加同一 URL 会解除黑名单。
+	if _, err := s.Create(Source{SourceConfig: model.SourceConfig{Name: "手动加回", URL: src.URL}}); err != nil {
+		t.Fatal(err)
+	}
+	blocked, _ = s.BlockedURLs()
+	if blocked[src.URL] {
+		t.Fatalf("re-added source should be unblocked: %+v", blocked)
+	}
+}

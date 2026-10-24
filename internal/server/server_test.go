@@ -24,7 +24,6 @@ import (
 	"cilicili/internal/cache"
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
-	"cilicili/internal/discover"
 	"cilicili/internal/media"
 	"cilicili/internal/model"
 	"cilicili/internal/probe"
@@ -180,12 +179,11 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	prober := probe.New(doer, registry, health, sourceStore, log, probe.Config{Timeout: time.Second, Concurrency: 2})
 	prober.Start(context.Background())
 	t.Cleanup(prober.Stop)
-	discoverer := discover.New(doer, fakeSubscribe{}, prober, sourceStore, log, []string{"https://discover.test/list.json"})
 	apiHandler := api.New(api.Deps{
 		Cfg: cfg, Log: log, Auth: authMgr, Searcher: searcher, Detail: resolver,
 		Registry: registry, Cache: store, Client: doer, Proxy: proxyHandler, LiveProxy: liveHandler,
 		UserData: userStore, Media: mediaMgr, Sources: sourceStore,
-		Subscribe: fakeSubscribe{}, Prober: prober, Discover: discoverer, Version: cfg.Version,
+		Subscribe: fakeSubscribe{}, Prober: prober, Version: cfg.Version,
 	})
 	h := server.New(server.Deps{API: apiHandler, Cfg: cfg, Log: log, Auth: authMgr})
 	ts := httptest.NewServer(h)

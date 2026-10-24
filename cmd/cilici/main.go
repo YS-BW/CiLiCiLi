@@ -233,6 +233,12 @@ func run() error {
 	defer prober.Stop()
 
 	discoverer := discover.New(client, subscribeFetcher, prober, sourceStore, log, cfg.DiscoverSources)
+	discoverer.Start(context.Background(), func() {
+		if list, err := sourceStore.ListEnabled(); err == nil {
+			registry.Replace(list)
+		}
+	})
+	defer discoverer.Stop()
 
 	authMgr := auth.New(cfg.Password, cfg.ProxySecret, cfg.TokenTTL)
 
