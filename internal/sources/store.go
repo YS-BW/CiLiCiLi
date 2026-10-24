@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,11 @@ CREATE TABLE IF NOT EXISTS sources (
   updated_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url ON sources(url);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT ''
+);
 
 CREATE TABLE IF NOT EXISTS subscriptions (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -347,6 +353,50 @@ func (s *Store) Reorder(keys []string) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// ---- 设置 ----
+
+// GetSetting 读取一个设置项；不存在时返回默认值。
+func (s *Store) GetSetting(key, fallback string) (string, error) {
+	var value string
+	err := s.db.QueryRow(`SELECT value FROM settings WHERE key=?`, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fallback, nil
+	}
+	if err != nil {
+		return fallback, err
+	}
+	return value, nil
+}
+
+// SetSetting 写入/更新一个设置项。
+func (s *Store) SetSetting(key, value string) error {
+	_, err := s.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?)
+		ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
+	return err
+}
+
+// ProbeInterval 读取探活间隔（默认 12h）。
+func (s *Store) ProbeInterval() (time.Duration, error) {
+	raw, err := s.GetSetting("probe_interval_hours", "12")
+	if err != nil {
+		return 12 * time.Hour, err
+	}
+	hours, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || hours < 1 || hours > 168 {
+		return 12 * time.Hour, nil
+	}
+	return time.Duration(hours) * time.Hour, nil
+}
+
+// SetProbeInterval 保存探活间隔（1–168 小时）。
+func (s *Store) SetProbeInterval(d time.Duration) error {
+	hours := int(d.Hours())
+	if hours < 1 || hours > 168 {
+		return errors.New("探活间隔需在 1–168 小时之间")
+	}
+	return s.SetSetting("probe_interval_hours", strconv.Itoa(hours))
 }
 
 // ---- 订阅 ----

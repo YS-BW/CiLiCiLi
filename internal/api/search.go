@@ -76,6 +76,20 @@ func (a *API) Search(w http.ResponseWriter, r *http.Request) {
 	if fast {
 		valid = a.deps.Searcher.SelectFast(valid, a.deps.Cfg.SearchFastSources)
 	}
+	// 只把「存活」的源放进搜索索引：熔断/探活失败的源直接排除。
+	// 全部被排除时保留原列表，让搜索返回 failures 而不是静默空结果。
+	if a.deps.Registry != nil {
+		now := time.Now()
+		alive := make([]model.SourceConfig, 0, len(valid))
+		for _, src := range valid {
+			if !a.deps.Registry.Health().IsOpen(src.Key, now) {
+				alive = append(alive, src)
+			}
+		}
+		if len(alive) > 0 {
+			valid = alive
+		}
+	}
 	w.Header().Set("X-Search-Sources", fmt.Sprintf("%d/%d", len(valid), total))
 
 	if r.URL.Query().Get("stream") != "1" {

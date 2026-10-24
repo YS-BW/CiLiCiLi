@@ -24,8 +24,10 @@ import (
 	"cilicili/internal/cache"
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
+	"cilicili/internal/discover"
 	"cilicili/internal/media"
 	"cilicili/internal/model"
+	"cilicili/internal/probe"
 	"cilicili/internal/proxy"
 	"cilicili/internal/search"
 	"cilicili/internal/server"
@@ -86,6 +88,8 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	pngData := testPNG(t)
 	doer := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
 		switch {
+		case strings.Contains(rawURL, "ac=videolist&wd=test"):
+			return body(200, "application/json", `{"code":1,"pagecount":"1","list":[{"vod_id":"1","vod_name":"测试资源","type_name":"电影"}]}`), nil
 		case strings.Contains(rawURL, "ac=videolist&ids="):
 			return body(200, "application/json", `{"code":1,"list":[{"vod_id":"1","vod_name":"庆余年","vod_play_from":"lineA$$$lineB","vod_play_url":"第1集$https://cdn.test/1.m3u8#第2集$https://cdn.test/2.m3u8$$$正片$https://cdn2.test/full.mp4"}]}`), nil
 		case strings.Contains(rawURL, "ac=videolist&wd="):
@@ -173,11 +177,15 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	prober := probe.New(doer, registry, health, sourceStore, log, probe.Config{Timeout: time.Second, Concurrency: 2})
+	prober.Start(context.Background())
+	t.Cleanup(prober.Stop)
+	discoverer := discover.New(doer, fakeSubscribe{}, prober, sourceStore, log, []string{"https://discover.test/list.json"})
 	apiHandler := api.New(api.Deps{
 		Cfg: cfg, Log: log, Auth: authMgr, Searcher: searcher, Detail: resolver,
 		Registry: registry, Cache: store, Client: doer, Proxy: proxyHandler, LiveProxy: liveHandler,
 		UserData: userStore, Media: mediaMgr, Sources: sourceStore,
-		Subscribe: fakeSubscribe{}, Version: cfg.Version,
+		Subscribe: fakeSubscribe{}, Prober: prober, Discover: discoverer, Version: cfg.Version,
 	})
 	h := server.New(server.Deps{API: apiHandler, Cfg: cfg, Log: log, Auth: authMgr})
 	ts := httptest.NewServer(h)

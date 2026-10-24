@@ -20,8 +20,10 @@ import (
 	"cilicili/internal/cache"
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
+	"cilicili/internal/discover"
 	"cilicili/internal/live"
 	"cilicili/internal/media"
+	"cilicili/internal/probe"
 	"cilicili/internal/providers"
 	"cilicili/internal/proxy"
 	"cilicili/internal/quality"
@@ -222,6 +224,16 @@ func run() error {
 		log.Info("media library enabled", "db", cfg.MediaDB, "covers", cfg.MediaCoverDir, "tmdb", tmdb.Enabled())
 	}
 
+	prober := probe.New(client, registry, health, sourceStore, log, probe.Config{
+		Timeout:     8 * time.Second,
+		Concurrency: 4,
+		UserAgent:   cfg.UserAgent,
+	})
+	prober.Start(context.Background())
+	defer prober.Stop()
+
+	discoverer := discover.New(client, subscribeFetcher, prober, sourceStore, log, cfg.DiscoverSources)
+
 	authMgr := auth.New(cfg.Password, cfg.ProxySecret, cfg.TokenTTL)
 
 	proxyHandler := proxy.New(proxy.Options{
@@ -260,6 +272,8 @@ func run() error {
 		Subscribe: subscribeFetcher,
 		UserData:  userStore,
 		Sources:   sourceStore,
+		Prober:    prober,
+		Discover:  discoverer,
 		Media:     mediaMgr,
 		Version:   cfg.Version,
 	})

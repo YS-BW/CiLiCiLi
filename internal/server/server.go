@@ -42,6 +42,10 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/sources/test", guard(d.API.SourceTest))
 	mux.HandleFunc("POST /api/sources/reset", guard(d.API.ResetSource))
 	mux.HandleFunc("POST /api/sources/reorder", guard(d.API.SourceReorder))
+	mux.HandleFunc("GET /api/sources/probe", guard(d.API.SourcesProbe))
+	mux.HandleFunc("POST /api/sources/probe", guard(d.API.SourcesProbe))
+	mux.HandleFunc("GET /api/sources/discover", guard(d.API.SourcesDiscover))
+	mux.HandleFunc("POST /api/sources/discover/apply", guard(d.API.SourcesDiscoverApply))
 	mux.HandleFunc("PUT /api/sources/{key}", guard(d.API.SourceUpdate))
 	mux.HandleFunc("DELETE /api/sources/{key}", guard(d.API.SourceDelete))
 

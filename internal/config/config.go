@@ -20,6 +20,7 @@ type Config struct {
 	CachePath        string
 	UserDB           string
 	SourcesDB        string
+	DiscoverSources  []string
 	MediaDB          string
 	MediaCoverDir    string
 	MediaCoverBase   string
@@ -80,6 +81,7 @@ func Load() (*Config, error) {
 		CachePath:        envString("CACHE_DB", filepath.Join(dataDir, "cache.db")),
 		UserDB:           envString("USER_DB", filepath.Join(dataDir, "userdata.db")),
 		SourcesDB:        envString("SOURCES_DB", filepath.Join(dataDir, "sources.db")),
+		DiscoverSources:  envList("DISCOVER_SOURCES"),
 		MediaDB:          envString("MEDIA_DB", filepath.Join(dataDir, "media.db")),
 		MediaCoverDir:    envString("MEDIA_COVER_DIR", filepath.Join(dataDir, "covers")),
 		MediaCoverBase:   envString("MEDIA_COVER_BASE", "/api/media"),
@@ -343,4 +345,20 @@ func clampDuration(v, lo, hi time.Duration) time.Duration {
 		return hi
 	}
 	return v
+}
+
+// envList 解析逗号分隔的环境变量列表。
+func envList(key string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

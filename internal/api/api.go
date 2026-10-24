@@ -13,10 +13,12 @@ import (
 	"cilicili/internal/cache"
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
+	"cilicili/internal/discover"
 	"cilicili/internal/httpx"
 	"cilicili/internal/live"
 	"cilicili/internal/media"
 	"cilicili/internal/model"
+	"cilicili/internal/probe"
 	"cilicili/internal/quality"
 	"cilicili/internal/recommend"
 	"cilicili/internal/search"
@@ -49,6 +51,8 @@ type Deps struct {
 	Subscribe SubscriptionFetcher
 	UserData  *userdata.Store
 	Sources   *sources.Store
+	Prober    *probe.Prober
+	Discover  *discover.Discoverer
 	Media     *media.Manager
 	Version   string
 }
