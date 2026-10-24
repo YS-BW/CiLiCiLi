@@ -247,6 +247,9 @@ Base URL：`/api`。除特别说明外：
 - 透传 `Range`/`If-*`，支持 `HEAD`；分片流式转发。
 - m3u8 会重写内部的 variant/分片/key/map 地址，指向本代理。
 - 返回 `Access-Control-Allow-Origin: *`。
+- 豆瓣图床对部分请求返回 `200 + text/html` 反爬挑战页（Go TLS 指纹触发）。代理检测到
+  「豆瓣图片路径 + 非 image 响应」时，改用镜像 `doubanio.viki.moe` 再取一次；挑战页与
+  其他 HTML 响应一律 `Cache-Control: no-store`，避免一次失败被浏览器缓存住。
 - 错误：`400` 缺/非法 URL；`401` 未登录；`403` SSRF 拒绝；`502` 上游失败。
 
 ### GET /api/live/stream?url=<encoded>
