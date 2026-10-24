@@ -52,3 +52,21 @@ LOG_LEVEL=info
 
 `/var/lib/cilicili` 挂载到容器 `/data`，保留缓存、健康、用户数据与媒体库。
 宿主机 nginx 的 `/` 继续反代 `127.0.0.1:8080` 即可同时服务 Web 和 API。
+
+## nginx
+
+Web 静态文件由宿主机 nginx 直接托管（gzip_static + HTTP/2），API 仍反代到容器：
+
+```bash
+scp deploy/nginx/cilicili.conf tencent-vps:/etc/nginx/conf.d/cilicili.conf
+ssh tencent-vps 'nginx -t && systemctl reload nginx'
+```
+
+构建 Web 后对静态资源做 gzip 预压缩（nginx `gzip_static` 直接发 `.gz`）：
+
+```bash
+cd clients/fladder/build/web
+find . -type f \( -name '*.js' -o -name '*.wasm' -o -name '*.json' \
+  -o -name '*.ttf' -o -name '*.otf' -o -name '*.svg' -o -name '*.css' -o -name '*.html' \) \
+  -size +1k -print0 | xargs -0 -P4 -I{} sh -c 'gzip -9 -k -f "{}"'
+```

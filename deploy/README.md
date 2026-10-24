@@ -1,5 +1,9 @@
 # 部署（腾讯云 CVM / 任意 Linux）
 
+> 当前线上使用 Docker 单容器部署（API + Web 同进程/同目录），见 [deploy/docker/README.md](docker/README.md) 与 [deploy/nginx/cilicili.conf](nginx/cilicili.conf)。
+> 下面是早期的 systemd 裸机方式，保留作参考。
+
+
 目标：单二进制 + systemd + nginx，不依赖 Docker（该 VPS 连不上 Docker Hub）。
 
 ## 1. 本机交叉编译
