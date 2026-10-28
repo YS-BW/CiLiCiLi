@@ -137,7 +137,7 @@ func (a *API) enrichDoubanMedia(ctx context.Context, typ, tag string, pageStart 
 			if it.IsTV {
 				card.Kind = media.KindTV
 			}
-			resp, serr := a.deps.Searcher.Search(ctx, it.Title, fast, true)
+			resp, serr := a.deps.Searcher.SearchQuiet(ctx, it.Title, fast, true)
 			if serr == nil && len(resp.List) > 0 {
 				if cards, cerr := a.deps.Media.SearchCards(resp.List, now); cerr == nil && len(cards) > 0 {
 					best := pickCard(cards, it.Title)

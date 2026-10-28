@@ -51,6 +51,9 @@ type Searcher struct {
 	log    *slog.Logger
 	cfg    Config
 	sf     singleflight.Group
+	// quiet 为 true 时不把本次搜索计入源健康/熔断（用于首页预取等后台批量调用，
+	// 避免后台高频请求把源打成熔断，影响用户实际搜索）。
+	quiet bool
 }
 
 // New 创建搜索器。
@@ -136,6 +139,13 @@ func (s *Searcher) Search(ctx context.Context, wd string, sources []model.Source
 	}
 	resp, _ := v.(model.SearchResponse)
 	return resp, nil
+}
+
+// SearchQuiet 与 Search 相同，但不计入源健康/熔断（供后台预取，避免污染熔断）。
+func (s *Searcher) SearchQuiet(ctx context.Context, wd string, sources []model.SourceConfig, filterAdult bool) (model.SearchResponse, error) {
+	clone := *s
+	clone.quiet = true
+	return clone.Search(ctx, wd, sources, filterAdult)
 }
 
 // Stream 是流式搜索：逐源回调 + 软截止 partial_done + 最终 done。
@@ -316,7 +326,7 @@ func (s *Searcher) searchSource(ctx context.Context, src model.SourceConfig, wd 
 	out.OK = true
 	out.List = items
 	out.MS = time.Since(start).Milliseconds()
-	if s.health != nil {
+	if s.health != nil && !s.quiet {
 		s.health.RecordSuccess(src.Key, out.MS, time.Now())
 	}
 	raw, _ := json.Marshal(out)
@@ -333,7 +343,7 @@ func (s *Searcher) fail(src model.SourceConfig, wd string, out *model.SourceSear
 		s.log.Debug("source search failed", "source", src.Key, "err", err)
 	}
 	out.MS = time.Since(start).Milliseconds()
-	if s.health != nil {
+	if s.health != nil && !s.quiet {
 		s.health.RecordFailure(src.Key, timedOut, time.Now())
 	}
 	if raw, mErr := json.Marshal(out); mErr == nil {

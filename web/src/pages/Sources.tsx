@@ -43,6 +43,13 @@ export default function Sources() {
     finally { setBusy(false); }
   }
 
+  async function resetAll() {
+    setBusy(true); setErr('');
+    try { await Promise.all(items.map(s => api.resetSource(s.key).catch(() => {}))); await load(); }
+    catch (e: any) { setErr(e?.message || '重置失败'); }
+    finally { setBusy(false); }
+  }
+
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !url.trim()) return;
@@ -56,7 +63,10 @@ export default function Sources() {
 
   return (
     <div className="page-pad" style={{ paddingTop: 100 }}>
-      <div className="page-title">源管理</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+        <div className="page-title" style={{ margin: 0 }}>源管理</div>
+        <button className="btn ghost" onClick={resetAll} disabled={busy} style={{ padding: '8px 16px', fontSize: 13 }}>重置全部熔断</button>
+      </div>
 
       <form onSubmit={add} style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="源名称"
