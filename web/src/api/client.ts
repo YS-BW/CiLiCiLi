@@ -154,6 +154,22 @@ export const api = {
     }
     return t;
   },
+
+  // 统一封面接口 URL：所有封面（搜索/首页/详情/收藏）都走 /api/cover。
+  //   title/year/kind → 后端查 TMDB；src 是已知原始图（外部 http），并发兜底；
+  //   big=false 取竖版海报（卡片），big=true 取横版剧照（大图/背景）。
+  // 站内地址（以 / 开头，如 /api/media/xxx/cover）直接用，不再套一层。
+  coverUrl(opts: { title?: string; year?: string; kind?: 'movie' | 'tv'; src?: string; big?: boolean }): string {
+    const src = (opts.src || '').trim();
+    if (src.startsWith('/')) return src;
+    const p = new URLSearchParams();
+    if (opts.title) p.set('title', opts.title);
+    if (opts.year) p.set('year', opts.year);
+    if (opts.kind) p.set('kind', opts.kind);
+    if (src && /^https?:\/\//i.test(src)) p.set('src', src);
+    p.set('big', opts.big ? '1' : '0');
+    return `/api/cover?${p.toString()}`;
+  },
 };
 
 const TITLE_RE = /[\s·•:：,，.。!！?？()（）\[\]【】《》<>"']+/g;

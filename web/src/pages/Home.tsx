@@ -4,15 +4,26 @@ import { api } from '../api/client';
 import type { RecommendItem, WatchProgress } from '../api/types';
 import PosterCard from '../components/PosterCard';
 
+// 模块级缓存：从其它页返回首页时先用缓存秒开，后台再刷新（SWR），避免骨架闪烁/仿佛重新加载。
+interface HomeCache {
+  movies: RecommendItem[];
+  tvs: RecommendItem[];
+  history: WatchProgress[];
+  heroTitle: string;
+  heroKind: 'movie' | 'tv';
+  ts: number;
+}
+let HOME_CACHE: HomeCache | null = null;
+
 export default function Home() {
   const nav = useNavigate();
-  const [movies, setMovies] = useState<RecommendItem[]>([]);
-  const [tvs, setTvs] = useState<RecommendItem[]>([]);
-  const [history, setHistory] = useState<WatchProgress[]>([]);
-  const [heroBackdrop, setHeroBackdrop] = useState('');   // TMDB 横版剧照
-  const [heroReady, setHeroReady] = useState(false);       // backdrop 查询是否已结束（无论有无）
-  const [heroTitleState, setHeroTitleState] = useState('');
-  const [loading, setLoading] = useState(true);
+  const cached = HOME_CACHE;
+  const [movies, setMovies] = useState<RecommendItem[]>(cached?.movies || []);
+  const [tvs, setTvs] = useState<RecommendItem[]>(cached?.tvs || []);
+  const [history, setHistory] = useState<WatchProgress[]>(cached?.history || []);
+  const [heroTitleState, setHeroTitleState] = useState(cached?.heroTitle || '');
+  const [heroKindState, setHeroKindState] = useState<'movie' | 'tv'>(cached?.heroKind || 'movie');
+  const [loading, setLoading] = useState(!cached);   // 有缓存则不再显示骨架
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -24,22 +35,12 @@ export default function Home() {
           api.history(true, 20).catch(() => []),
         ]);
         setMovies(m); setTvs(t); setHistory(h);
-        // 主推：优先豆瓣电影第一项，其次剧集
         const head = m[0] || t[0];
-        if (head) {
-          setHeroTitleState(head.title);
-          const type = m[0] ? 'movie' : 'tv';
-          // 无论成功/失败都标记 ready，避免"先小海报再大图"的闪烁
-          api.backdrop(head.title, type as 'movie' | 'tv')
-            .then(bd => setHeroBackdrop(bd))
-            .catch(() => {})
-            .finally(() => setHeroReady(true));
-        } else {
-          setHeroReady(true);
-        }
+        const kind: 'movie' | 'tv' = m[0] ? 'movie' : 'tv';
+        if (head) { setHeroTitleState(head.title); setHeroKindState(kind); }
+        HOME_CACHE = { movies: m, tvs: t, history: h, heroTitle: head?.title || '', heroKind: kind, ts: Date.now() };
       } catch (e: any) {
         setErr(e?.message || '加载失败');
-        setHeroReady(true);
       } finally {
         setLoading(false);
       }
@@ -49,30 +50,17 @@ export default function Home() {
   const featured = movies[0] || tvs[0] || null;
   const heroTitle = heroTitleState || (featured && 'title' in featured ? (featured as any).title : '');
   const heroRaw = featured ? ('cover' in (featured as any) ? (featured as any).cover : (featured as any).pic) : '';
-  // 竖版海报（豆瓣小图 → raw 原图），作为无 TMDB 横版图时的回退
-  const heroPoster = api.hiResCover(heroRaw || '');
-  const hasWide = !!heroBackdrop;
-  const heroBg = hasWide ? api.proxyUrl(heroBackdrop) : (heroPoster ? api.proxyUrl(heroPoster) : '');
-
-  // hero 就绪前（数据或 backdrop 未定）统一显示骨架，避免先渲染竖版小海报再跳大图的闪烁
-  const heroPending = loading || (!heroReady && (movies.length > 0 || loading));
+  // 主推大图统一走 /api/cover big=1（TMDB 横版剧照，src 用豆瓣图兜底）
+  const heroBg = heroTitle ? api.coverUrl({ title: heroTitle, src: heroRaw || '', kind: heroKindState, big: true }) : '';
+  const heroPending = loading;
 
   return (
     <div>
       {heroPending ? (
         <div className="hero-skeleton" />
       ) : heroTitle ? (
-        <section className={`hero${hasWide ? ' wide' : ''}`}>
-          {heroBg ? (
-            <>
-              {!hasWide && <div className="bg-blur" style={{ backgroundImage: `url(${heroBg})` }} />}
-              {hasWide
-                ? <div className="bg-wide" style={{ backgroundImage: `url(${heroBg})` }} />
-                : <div className="hero-poster" style={{ backgroundImage: `url(${heroBg})` }} />}
-            </>
-          ) : (
-            <div className="bg" style={{ background: 'radial-gradient(120% 90% at 78% 30%,#3a2a20,#050505)' }} />
-          )}
+        <section className="hero wide">
+          <div className="bg-wide" style={{ backgroundImage: `url(${heroBg})` }} />
           <div className="hero-fade" />
           <div className="content">
             <div className="kicker"><b>C</b> 本周推荐</div>
@@ -100,7 +88,7 @@ export default function Home() {
               {history.map(h => {
                 const pct = h.duration > 0 ? (h.position / h.duration) * 100 : 0;
                 return (
-                  <PosterCard key={h.id} wide title={h.title || h.vodId} cover={h.cover}
+                  <PosterCard key={h.id} wide title={h.title || h.vodId} src={h.cover}
                     sub={`${h.episodeName || ''}`} progress={pct}
                     onClick={() => nav(`/play/${encodeURIComponent(h.sourceKey)}/${encodeURIComponent(h.vodId)}?ep=${encodeURIComponent(h.episodeId || '')}`)} />
                 );
@@ -114,7 +102,7 @@ export default function Home() {
             <h3>热门电影</h3>
             <div className="rail">
               {movies.map(m => (
-                <PosterCard key={m.id} title={m.title} cover={m.cover || m.pic}
+                <PosterCard key={m.id} title={m.title} kind="movie" src={m.cover || m.pic}
                   sub={m.score ? `★ ${m.score}` : undefined}
                   onClick={() => nav(`/search?wd=${encodeURIComponent(m.title)}`)} />
               ))}
@@ -127,7 +115,7 @@ export default function Home() {
             <h3>热门剧集</h3>
             <div className="rail">
               {tvs.map(m => (
-                <PosterCard key={m.id} title={m.title} cover={m.cover || m.pic}
+                <PosterCard key={m.id} title={m.title} kind="tv" src={m.cover || m.pic}
                   sub={m.score ? `★ ${m.score}` : undefined}
                   onClick={() => nav(`/search?wd=${encodeURIComponent(m.title)}`)} />
               ))}

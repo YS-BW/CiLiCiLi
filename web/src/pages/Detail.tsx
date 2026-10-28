@@ -17,7 +17,6 @@ export default function Detail() {
   const [playing, setPlaying] = useState(false);
   const [hint, setHint] = useState('');
   const [faved, setFaved] = useState(false);
-  const [backdrop, setBackdrop] = useState('');
   const playerRef = useRef<PlayerHandle | null>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -39,8 +38,6 @@ export default function Detail() {
           if (found >= 0) ep = found;
         }
         setEpIdx(ep);
-        // 详情页背景大图：按标题查 TMDB 横版剧照（豆瓣/采集站只有竖版封面）
-        api.backdrop(viTitle(d), isTvType(d) ? 'tv' : 'movie', d.videoInfo?.year || '').then(bd => { if (bd) setBackdrop(bd); }).catch(() => {});
       } catch (e: any) {
         setErr(e?.message || '详情加载失败');
       } finally {
@@ -121,16 +118,16 @@ export default function Detail() {
   if (!detail) return null;
 
   const vi = detail.videoInfo;
-  // 详情页大图只用 TMDB 横版剧照；拿不到就用干净深色渐变兜底，
-  // 不再用竖版海报模糊拉伸（那种会糊、观感差）。
-  const heroBg = backdrop ? api.proxyUrl(backdrop) : '';
+  // 详情页大图走统一封面接口 big=1（TMDB 横版剧照），src 用竖版封面兜底；
+  // 下方恒有深色底，图片未加载/失败时不会空白。
+  const kind: 'movie' | 'tv' = isTvType(detail) ? 'tv' : 'movie';
+  const heroBg = api.coverUrl({ title: vi.title, year: vi.year, kind, src: vi.cover, big: true });
 
   return (
     <div>
-      <section className={`detail-hero${backdrop ? ' wide' : ''}`}>
-        {heroBg
-          ? <div className="bg-wide" style={{ backgroundImage: `url(${heroBg})` }} />
-          : <div className="bg-dark" />}
+      <section className="detail-hero wide">
+        <div className="bg-dark" />
+        <div className="bg-wide" style={{ backgroundImage: `url(${heroBg})` }} />
         <div className="inner">
           <h1>{vi.title || vodId}</h1>
           <div className="meta">
@@ -210,8 +207,6 @@ export default function Detail() {
     </div>
   );
 }
-
-// 详情页查 backdrop 用的标题：优先 videoInfo.title，去掉尾部「第二季」等季数后缀影响不大，TMDB 能容忍。
 function viTitle(d: VideoDetail): string {
   return (d.videoInfo?.title || '').trim();
 }

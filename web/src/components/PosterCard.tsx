@@ -2,25 +2,27 @@ import { api } from '../api/client';
 
 interface PosterCardProps {
   title: string;
-  cover?: string;
-  backdrop?: string;
-  badge?: string;       // 源数量等角标
+  year?: string;
+  kind?: 'movie' | 'tv';
+  src?: string;         // 已知原始图（采集源 pic / 豆瓣图），交给 /api/cover 并发兜底
+  cover?: string;       // 兼容旧用法：站内 /api/media 封面直接使用
+  badge?: string;
   sub?: string;
-  wide?: boolean;       // 16:9（继续观看/同片源）还是 2:3 海报
-  progress?: number;    // 0-100
+  wide?: boolean;       // 16:9（继续观看）还是 2:3 海报
+  progress?: number;
   onClick?: () => void;
 }
 
-// 统一的卡片：优先本地封面 / backdrop，加载失败回退，不猜第二张源图。
-export default function PosterCard({ title, cover, backdrop, badge, sub, wide, progress, onClick }: PosterCardProps) {
-  const src = api.proxyUrl(backdrop || cover || '');
+// 统一卡片：所有封面经 /api/cover（后端 TMDB+源并发、缓存）。
+export default function PosterCard({ title, year, kind, src, cover, badge, sub, wide, progress, onClick }: PosterCardProps) {
+  const imgSrc = src && src.startsWith('/')
+    ? src
+    : (cover && cover.startsWith('/') && !src ? cover : api.coverUrl({ title, year, kind, src: src || cover, big: false }));
   return (
     <div className={`tile${wide ? '' : ' poster-tile'}`} onClick={onClick}>
       <div className="poster">
-        {src ? (
-          <img src={src} alt={title} loading="lazy" decoding="async"
-               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-        ) : null}
+        <img src={imgSrc} alt={title} loading="lazy" decoding="async"
+             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         {badge ? <span className="srcbadge">{badge}</span> : null}
         {progress != null ? <div className="bar"><i style={{ width: `${Math.min(100, progress)}%` }} /></div> : null}
       </div>

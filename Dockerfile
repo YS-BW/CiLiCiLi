@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # CiLiCiLi 后端：多阶段构建，产物为只含 Go 二进制的 alpine 镜像（约 20MB）。
 FROM golang:1.27-alpine AS build
 WORKDIR /src

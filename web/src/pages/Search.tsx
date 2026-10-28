@@ -93,10 +93,14 @@ export default function Search() {
             if (src) nav(`/play/${encodeURIComponent(src.sourceKey)}/${encodeURIComponent(src.vodId)}`);
           }}>
             <div className="poster">
-              {m.cover || m.backdrop ? (
-                <img src={api.proxyUrl(m.cover || m.backdrop || '')} alt={m.title} loading="lazy" decoding="async"
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-              ) : null}
+              {(() => {
+                const kind: 'movie' | 'tv' = m.kind === 'tv' || m.kind === 'anime' ? 'tv' : 'movie';
+                const src = m.cover && m.cover.startsWith('/')
+                  ? m.cover
+                  : api.coverUrl({ title: m.title, year: m.year, kind, src: m.sources[0]?.pic || m.cover, big: false });
+                return <img src={src} alt={m.title} loading="lazy" decoding="async"
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />;
+              })()}
               <span className="srcbadge">{m.sourceCount} 源</span>
             </div>
             <div className="n">{m.title}</div>

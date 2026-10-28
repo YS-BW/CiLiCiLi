@@ -33,10 +33,8 @@ export default function Favorites() {
         {items.map(f => (
           <div className="gcard" key={f.id} onClick={() => nav(`/play/${encodeURIComponent(f.sourceKey)}/${encodeURIComponent(f.vodId)}`)}>
             <div className="poster">
-              {f.cover ? (
-                <img src={api.proxyUrl(f.cover)} alt={f.title} loading="lazy" decoding="async"
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-              ) : null}
+              <img src={api.coverUrl({ title: f.title, src: f.cover, big: false })} alt={f.title} loading="lazy" decoding="async"
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
             </div>
             <div className="n">{f.title}</div>
           </div>
