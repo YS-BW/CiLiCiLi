@@ -302,3 +302,29 @@ img { display: block; }
   .src-lat { display: none; }
   .src-actions { margin-left: auto; }
 }
+
+/* ---------- 移动端 App 化：底部 Tab 栏 ---------- */
+.tabbar { display: none; }
+@media (max-width: 720px) {
+  .nav .links { display: none !important; }              /* 顶部链接改到底部 Tab */
+  .nav { padding-bottom: 10px !important; }
+  .tabbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 130;
+    height: calc(56px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(10,10,10,.97); border-top: 1px solid #222; backdrop-filter: blur(10px);
+  }
+  .tabbar a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: #9aa0ab; font-size: 11px; -webkit-tap-highlight-color: transparent; }
+  .tabbar a .ico { font-size: 19px; line-height: 1; }
+  .tabbar a.active { color: #fff; }
+  /* 底部留出 Tab 栏空间 */
+  .page-pad { padding-bottom: 84px !important; }
+  .rows { padding-bottom: 96px; }
+  /* 移动端细节：按钮更大、卡片间距、hero */
+  .hero { height: 66vh; min-height: 440px; }
+  .hero .btns, .dbtns { width: 100%; }
+  .dbtns .btn { flex: 1; justify-content: center; }
+  .rail { scroll-snap-type: x proximity; }
+  .tile { scroll-snap-align: start; }
+  .search-status { position: sticky; }
+}

@@ -33,6 +33,7 @@ export default function Nav() {
   function chooseMode(m: SearchMode) { setMode(m); setSearchMode(m); }
 
   return (
+    <>
     <nav className={`nav${solid ? ' solid' : ''}`}>
       <div className="brand">CILICILI</div>
       <div className="links">
@@ -68,5 +69,13 @@ export default function Nav() {
         ) : null}
       </div>
     </nav>
+
+    {/* 移动端底部 Tab 栏（App 化） */}
+    <nav className="tabbar">
+      <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}><span className="ico">🏠</span><span>首页</span></NavLink>
+      <NavLink to="/me" className={({ isActive }) => (isActive ? 'active' : '')}><span className="ico">👤</span><span>我的</span></NavLink>
+      <NavLink to="/sources" className={({ isActive }) => (isActive ? 'active' : '')}><span className="ico">🗂️</span><span>源管理</span></NavLink>
+    </nav>
+    </>
   );
 }
