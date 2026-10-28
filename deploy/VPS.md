@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-29 更新：前端并入后端 + 全站 Web
+
+- 前端构建产物 dist 并入后端镜像（`/web`），后端以 `WEB_DIR=/web` 直接托管 SPA（同源，免 Nginx 镜像）。
+- 新镜像 tag：`cilicili-backend:web-20261029-020809`（以旧镜像为底座离线构建）；release 目录 `/opt/cilicili-backend/releases/web-20261029-020809`。
+- 宿主 Nginx：`location /` 由 `return 404` 改为反代 `http://127.0.0.1:8080`（/api 规则不变），已 reload。
+- 部署前备份：`/opt/cilicili-backend/backups/preweb-20261029-020830`（sources.db 快照，23 源）。
+- 部署后校验：HTTPS 首页 200、/api/health 正常、搜索 45 条、首页 douban 带评分/源数、big 封面 200、**源 23 保留、历史 8 条保留**。
+- 访问：`https://124.221.121.195/`（自签证书）。回退：把 current 指回上一个 release 后 compose up -d，并把 nginx `location /` 改回 return 404。
+
+---
+
 以下为 2026-10-25 首次部署记录：
 
 - 仅运行 `cilicili-backend`，Docker 健康状态为 healthy，自动重启策略 unless-stopped。
