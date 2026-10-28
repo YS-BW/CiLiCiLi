@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { SearchMedia, StreamEvent } from '../api/types';
+import { getSearchMode } from '../lib/settings';
 
 function kindOf(m: SearchMedia): 'movie' | 'tv' {
   return m.kind === 'tv' || m.kind === 'anime' ? 'tv' : 'movie';
@@ -9,9 +10,8 @@ function kindOf(m: SearchMedia): 'movie' | 'tv' {
 
 export default function Search() {
   const nav = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const wd = params.get('wd') || '';
-  const [input, setInput] = useState(wd);
   const [media, setMedia] = useState<SearchMedia[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [done, setDone] = useState(false);
@@ -20,7 +20,7 @@ export default function Search() {
   const [filter, setFilter] = useState<'all' | 'movie' | 'tv'>('all');
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => { setInput(wd); if (wd) run(wd); /* eslint-disable-next-line */ }, [wd]);
+  useEffect(() => { if (wd) run(wd); /* eslint-disable-next-line */ }, [wd]);
 
   // 每个源结算就增量渲染（同安卓）：首源立即出结果，后续源节流合入，避免频繁重排。
   async function run(keyword: string) {
@@ -70,7 +70,7 @@ export default function Search() {
           setMedia(finalList);
           setDone(true); setStreaming(false);
         }
-      }, ac.signal);
+      }, ac.signal, { fast: getSearchMode() === 'fast' });
       setDone(true); setStreaming(false);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
@@ -79,13 +79,6 @@ export default function Search() {
     } finally {
       if (renderTimer) clearTimeout(renderTimer);
     }
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const kw = input.trim();
-    if (!kw) return;
-    setParams({ wd: kw });
   }
 
   const filtered = media.filter(m => {
@@ -97,10 +90,7 @@ export default function Search() {
 
   return (
     <div className="page-pad" style={{ paddingTop: 100 }}>
-      <form className="search-hero" onSubmit={submit}>
-        <input value={input} onChange={e => setInput(e.target.value)} placeholder="搜索影片…" autoFocus />
-        <button className="btn play" type="submit" style={{ padding: '0 30px' }}>搜索</button>
-      </form>
+      <div className="page-title" style={{ marginBottom: 16 }}>「{wd}」的搜索结果</div>
       <div className="seg">
         <span className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>全部</span>
         <span className={filter === 'movie' ? 'active' : ''} onClick={() => setFilter('movie')}>电影</span>

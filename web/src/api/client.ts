@@ -65,12 +65,13 @@ export const api = {
     keyword: string,
     onEvent: (e: StreamEvent) => void,
     signal?: AbortSignal,
+    opts?: { fast?: boolean },
   ): Promise<void> {
     const resp = await fetch(BASE + '/api/search?stream=1', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wd: keyword.trim(), fast: true, filterAdult: true, includeMedia: true }),
+      body: JSON.stringify({ wd: keyword.trim(), fast: opts?.fast ?? true, filterAdult: true, includeMedia: true }),
       signal,
     });
     if (!resp.ok) throw await parseError(resp);
@@ -119,6 +120,9 @@ export const api = {
 
   saveProgress: (payload: Record<string, unknown>) =>
     jsonFetch<WatchProgress>('/api/me/progress', { method: 'PUT', body: JSON.stringify(payload) }),
+
+  deleteHistory: (id: string) =>
+    jsonFetch<{ success: boolean }>(`/api/me/history/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   favorites: (limit = 100) =>
     jsonFetch<{ items: FavoriteItem[] }>(`/api/me/favorites?limit=${limit}`).then(r => r.items || []),

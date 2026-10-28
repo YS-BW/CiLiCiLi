@@ -5,7 +5,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Detail from './pages/Detail';
-import Favorites from './pages/Favorites';
+import My from './pages/My';
 import Sources from './pages/Sources';
 
 export default function App() {
@@ -31,7 +31,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/search" element={<Search />} />
         <Route path="/play/:sourceKey/:vodId" element={<Detail />} />
-        <Route path="/favorites" element={<Favorites />} />
+        <Route path="/me" element={<My />} />
         <Route path="/sources" element={<Sources />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

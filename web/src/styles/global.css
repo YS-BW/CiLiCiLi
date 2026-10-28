@@ -203,3 +203,25 @@ img { display: block; }
 .login .card input:focus { border-color: #666; }
 .login .card .btn { width: 100%; justify-content: center; background: var(--accent); color: #fff; padding: 14px; }
 .login .hint { color: #777; font-size: 12px; margin-top: 16px; }
+
+/* ---------- nav 居中搜索框 + 设置面板 ---------- */
+.nav-search-wrap { flex: 1; display: flex; justify-content: center; }
+.nav-search { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.6);
+  border: 1px solid #333; border-radius: 8px; padding: 8px 14px; width: min(640px, 52vw); transition: border-color .15s; }
+.nav-search:focus-within { border-color: #666; }
+.nav-search-icon { opacity: .6; font-size: 13px; }
+.nav-search input { flex: 1; background: none; border: none; outline: none; color: #fff; font-size: 14px; }
+.nav-right { position: relative; display: flex; align-items: center; }
+.settings-panel { position: absolute; top: 46px; right: 0; width: 270px; background: #161616;
+  border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.7); z-index: 60; }
+.sp-title { font-weight: 700; margin-bottom: 12px; }
+.sp-section { font-size: 12px; color: #888; margin: 10px 0 6px; }
+.sp-radio { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; cursor: pointer; font-size: 14px; }
+.sp-radio input { margin-top: 3px; accent-color: #e50914; }
+.sp-radio em { display: block; font-style: normal; color: #888; font-size: 12px; margin-top: 2px; }
+.sp-divider { height: 1px; background: #2a2a2a; margin: 12px 0; }
+.sp-logout { width: 100%; text-align: left; color: #ff6b6b; font-size: 14px; padding: 8px 0; }
+.sp-logout:hover { color: #ff8f8f; }
+.card-del { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(0,0,0,.72); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; z-index: 3; }
+.card-del:hover { background: #e50914; }
