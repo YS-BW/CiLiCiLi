@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { SearchMedia, StreamEvent } from '../api/types';
 import { getSearchMode } from '../lib/settings';
+import { rememberSources } from '../lib/sourcesCache';
 
 function kindOf(m: SearchMedia): 'movie' | 'tv' {
   return m.kind === 'tv' || m.kind === 'anime' ? 'tv' : 'movie';
@@ -107,7 +108,7 @@ export default function Search() {
         {filtered.map(m => (
           <div className="gcard" key={m.id} onClick={() => {
             const src = m.sources[0];
-            if (src) nav(`/play/${encodeURIComponent(src.sourceKey)}/${encodeURIComponent(src.vodId)}`);
+            if (src) { rememberSources(m.title, m.sources); nav(`/play/${encodeURIComponent(src.sourceKey)}/${encodeURIComponent(src.vodId)}`); }
           }}>
             <div className="poster">
               {(() => {

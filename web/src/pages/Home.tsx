@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { SearchMedia, WatchProgress } from '../api/types';
 import PosterCard from '../components/PosterCard';
+import { rememberSources } from '../lib/sourcesCache';
 
 // 模块级缓存：从其它页返回首页时先用缓存秒开，后台再刷新（SWR），避免骨架闪烁。
 interface HomeCache {
@@ -51,6 +52,7 @@ export default function Home() {
   function openCard(m: SearchMedia) {
     const s = m.sources?.[0];
     if (s && s.sourceKey && s.vodId) {
+      rememberSources(m.title, m.sources);
       nav(`/play/${encodeURIComponent(s.sourceKey)}/${encodeURIComponent(s.vodId)}`);
     } else {
       nav(`/search?wd=${encodeURIComponent(m.title)}`);

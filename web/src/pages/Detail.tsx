@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { VideoDetail, PlayLine, Episode } from '../api/types';
+import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
 import Player, { type PlayerHandle } from '../components/Player';
+import { getSources, rememberSources } from '../lib/sourcesCache';
 
 export default function Detail() {
   const { sourceKey = '', vodId = '' } = useParams();
@@ -18,8 +19,25 @@ export default function Detail() {
   const [hint, setHint] = useState('');
   const [faved, setFaved] = useState(false);
   const [heroBg, setHeroBg] = useState<{ url: string; wide: boolean } | null>(null);
+  const [allSources, setAllSources] = useState<SourceRef[]>([]);
   const playerRef = useRef<PlayerHandle | null>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 同片可切换的采集源：优先用搜索/首页带过来的，否则按标题搜一次补全。
+  useEffect(() => {
+    if (!detail) return;
+    const title = detail.videoInfo?.title || '';
+    let cancelled = false;
+    const cached = getSources(title);
+    if (cached.length > 1) { setAllSources(cached); return; }
+    api.search(title, { fast: true }).then(r => {
+      if (cancelled) return;
+      const m = r.media && r.media[0];
+      const list = m?.sources?.length ? m.sources : cached;
+      if (list && list.length) { setAllSources(list); rememberSources(title, list); }
+    }).catch(() => { if (!cancelled) setAllSources(cached); });
+    return () => { cancelled = true; };
+  }, [detail]);
 
   // 详情页大图：预加载 big 封面，按图片朝向决定展示方式（横图才铺满，竖图不拉伸）。
   useEffect(() => {
@@ -171,6 +189,20 @@ export default function Detail() {
       {/* 正片内容区：左选集 + 右信息，填满屏幕 */}
       <section className="detail-body">
         <div>
+          {allSources.length > 1 && (
+            <div className="lines">
+              <span>片源</span>
+              {allSources.map(s => {
+                const cur = s.sourceKey === sourceKey && s.vodId === vodId;
+                return (
+                  <span key={s.sourceKey + ':' + s.vodId} className={`l${cur ? ' active' : ''}`}
+                    onClick={() => { if (!cur) nav(`/play/${encodeURIComponent(s.sourceKey)}/${encodeURIComponent(s.vodId)}`); }}>
+                    {s.sourceName || s.sourceKey}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {detail.playLines.length > 1 && (
             <div className="lines">
               <span>线路</span>
