@@ -10,6 +10,8 @@ export default function Home() {
   const [tvs, setTvs] = useState<RecommendItem[]>([]);
   const [history, setHistory] = useState<WatchProgress[]>([]);
   const [heroBackdrop, setHeroBackdrop] = useState('');   // TMDB 横版剧照
+  const [heroReady, setHeroReady] = useState(false);       // backdrop 查询是否已结束（无论有无）
+  const [heroTitleState, setHeroTitleState] = useState('');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
@@ -22,33 +24,44 @@ export default function Home() {
           api.history(true, 20).catch(() => []),
         ]);
         setMovies(m); setTvs(t); setHistory(h);
-        // 主推：优先豆瓣电影第一项，其次剧集，最后继续观看
+        // 主推：优先豆瓣电影第一项，其次剧集
         const head = m[0] || t[0];
         if (head) {
+          setHeroTitleState(head.title);
           const type = m[0] ? 'movie' : 'tv';
-          api.backdrop(head.title, type as 'movie' | 'tv').then(setHeroBackdrop).catch(() => {});
+          // 无论成功/失败都标记 ready，避免"先小海报再大图"的闪烁
+          api.backdrop(head.title, type as 'movie' | 'tv')
+            .then(bd => setHeroBackdrop(bd))
+            .catch(() => {})
+            .finally(() => setHeroReady(true));
+        } else {
+          setHeroReady(true);
         }
       } catch (e: any) {
         setErr(e?.message || '加载失败');
+        setHeroReady(true);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const featured = movies[0] || tvs[0] || history[0] || null;
-  const heroTitle = featured ? ('title' in featured ? featured.title : '') : '';
+  const featured = movies[0] || tvs[0] || null;
+  const heroTitle = heroTitleState || (featured && 'title' in featured ? (featured as any).title : '');
   const heroRaw = featured ? ('cover' in (featured as any) ? (featured as any).cover : (featured as any).pic) : '';
   // 竖版海报（豆瓣小图 → raw 原图），作为无 TMDB 横版图时的回退
   const heroPoster = api.hiResCover(heroRaw || '');
   const hasWide = !!heroBackdrop;
   const heroBg = hasWide ? api.proxyUrl(heroBackdrop) : (heroPoster ? api.proxyUrl(heroPoster) : '');
 
+  // hero 就绪前（数据或 backdrop 未定）统一显示骨架，避免先渲染竖版小海报再跳大图的闪烁
+  const heroPending = loading || (!heroReady && (movies.length > 0 || loading));
+
   return (
     <div>
-      {loading ? (
+      {heroPending ? (
         <div className="hero-skeleton" />
-      ) : featured ? (
+      ) : heroTitle ? (
         <section className={`hero${hasWide ? ' wide' : ''}`}>
           {heroBg ? (
             <>
@@ -65,9 +78,9 @@ export default function Home() {
             <div className="kicker"><b>C</b> 本周推荐</div>
             <h1>{heroTitle}</h1>
             <div className="meta">
-              {'score' in featured && (featured as any).score ? <span className="score">★ {(featured as any).score}</span> : null}
-              {(featured as any).year ? <span>{(featured as any).year}</span> : null}
-              {'type' in featured && (featured as any).type ? <span>{(featured as any).type}</span> : null}
+              {(featured as any)?.score ? <span className="score">★ {(featured as any).score}</span> : null}
+              {(featured as any)?.year ? <span>{(featured as any).year}</span> : null}
+              {(featured as any)?.type ? <span>{(featured as any).type}</span> : null}
             </div>
             <div className="desc">点击「搜索」按片名查找可用片源与线路。</div>
             <div>
