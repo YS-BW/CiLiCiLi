@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
-import Player, { type PlayerHandle } from '../components/Player';
+import Player from '../components/Player';
 import { getSources, rememberSources } from '../lib/sourcesCache';
 
 export default function Detail() {
@@ -20,7 +20,7 @@ export default function Detail() {
   const [faved, setFaved] = useState(false);
   const [heroBg, setHeroBg] = useState<{ url: string; wide: boolean } | null>(null);
   const [allSources, setAllSources] = useState<SourceRef[]>([]);
-  const playerRef = useRef<PlayerHandle | null>(null);
+  const [showEps, setShowEps] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 同片可切换的采集源：优先用搜索/首页带过来的，否则按标题搜一次补全。
@@ -237,22 +237,42 @@ export default function Detail() {
       </section>
 
       {playing && episode && (
-        <div className="player-modal" onClick={(e) => { if (e.target === e.currentTarget) setPlaying(false); }}>
-          <div className="player-box">
-            <button className="player-close" onClick={() => setPlaying(false)}>✕</button>
+        <div className="nf-player">
+          <div className="nf-top">
+            <button className="nf-back" onClick={() => setPlaying(false)}>‹ 返回</button>
+            <div className="nf-title">{vi.title}{episode.name ? ` · ${episode.name}` : ` · 第${episode.index}集`}</div>
+            <div className="nf-top-right">
+              <button className="nf-btn" onClick={() => setShowEps(v => !v)}>选集</button>
+              <button className="nf-btn" onClick={() => {
+                if (!line) return;
+                const i = line.episodes.findIndex(e => e.id === episode.id);
+                if (i >= 0 && i + 1 < line.episodes.length) setEpIdx(i + 1);
+              }}>下一集</button>
+            </div>
+          </div>
+          <div className="nf-video">
             <Player
-              ref={playerRef}
               url={playUrl}
               episodeKey={episode.id}
               getRestorePosition={restorePosition}
               onProgress={reportProgress}
               onEnded={nextEpisode}
               onHint={showHint}
-              onError={(t) => showHint(t)}
               onRequestSwitchSource={() => { showHint('播放失败，请切换线路或片源'); }}
             />
-            {hint ? <div className="player-hint">{hint}</div> : null}
           </div>
+          {showEps && line ? (
+            <div className="nf-eps-panel">
+              <div className="nf-eps-head">选集 · {line.name || '线路'}</div>
+              <div className="nf-eps-grid">
+                {line.episodes.map((e, i) => (
+                  <span key={e.id} className={`nf-ep${e.id === episode.id ? ' active' : ''}`}
+                    onClick={() => { setEpIdx(i); }}>{e.name || `第${e.index}集`}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {hint ? <div className="nf-hint">{hint}</div> : null}
         </div>
       )}
 

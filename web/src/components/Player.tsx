@@ -1,31 +1,20 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import Artplayer from 'artplayer';
 import Hls, { type HlsConfig } from 'hls.js';
 import { PlaybackRecovery, describeHlsError } from '../lib/playback-recovery';
 
-export interface PlayerHandle {
-  seek: (seconds: number) => void;
-  getCurrentTime: () => number;
-  getDuration: () => number;
-  pause: () => void;
-  play: () => void;
-}
-export const original_duration_placeholder = null;
-
 export interface PlayerProps {
-  url: string;                 // 当前集播放地址（直连 m3u8，或已含 /api/proxy）
-  episodeKey: string;          // 用于区分换集
-  getRestorePosition?: () => Promise<number>; // 续播位置（秒）
+  url: string;
+  episodeKey: string;
+  getRestorePosition?: () => Promise<number>;
   onProgress?: (position: number, duration: number) => void;
   onEnded?: () => void;
   onRequestSwitchSource?: (reason: string) => void;
   onHint?: (text: string) => void;
-  onError?: (text: string) => void;
 }
 
-// hls.js 配置：快起播 + 少卡顿（对齐 LibreTV-Next，去掉广告过滤/缓存）
 function buildHlsConfig(): Partial<HlsConfig> {
   return {
-    debug: false,
     enableWorker: true,
     backBufferLength: 90,
     maxBufferLength: 30,
@@ -42,169 +31,146 @@ function buildHlsConfig(): Partial<HlsConfig> {
   };
 }
 
-function toProxyUrl(mediaUrl: string): string {
+function proxyURL(mediaUrl: string): string {
   if (mediaUrl.startsWith('/api/proxy')) return mediaUrl;
   return `/api/proxy?url=${encodeURIComponent(mediaUrl)}`;
 }
 
-const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(props, ref) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const recoveryRef = useRef<PlaybackRecovery | null>(null);
-  const playbackStartedRef = useRef(false);
-  const restoredRef = useRef(false);
+// 用现成的 ArtPlayer 作为播放器内核（UI/控制条/全屏/设置都由它提供），
+// 仅用 hls.js 做 HLS 播放与「直连→代理」回退、错误恢复、续播与进度上报。
+export default function Player(props: PlayerProps) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
 
-  useImperativeHandle(ref, () => ({
-    seek: (s: number) => { const v = videoRef.current; if (v) v.currentTime = s; },
-    getCurrentTime: () => videoRef.current?.currentTime ?? 0,
-    getDuration: () => videoRef.current?.duration ?? 0,
-    pause: () => videoRef.current?.pause(),
-    play: () => { videoRef.current?.play().catch(() => {}); },
-  }), []);
-
-  // 进度上报：节流 + 暂停/结束时补报
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
+    const host = hostRef.current;
+    if (!host || !props.url) return;
+
+    const art = new Artplayer({
+      container: host,
+      url: props.url,
+      autoplay: true,
+      theme: '#e50914',
+      volume: 0.8,
+      autoSize: false,
+      autoMini: true,
+      fullscreen: true,
+      fullscreenWeb: true,
+      pip: true,
+      setting: true,
+      playbackRate: true,
+      aspectRatio: true,
+      hotkey: true,
+      lang: 'zh-cn',
+      customType: {
+        m3u8: (video: HTMLVideoElement, url: string, artInstance: Artplayer) => {
+          setupHls(video, url, artInstance, true);
+        },
+      },
+    });
+
+    // 自动播放：未静音被浏览器策略拦时，退回静音自动播放并提示开启声音
+    const ensurePlay = () => {
+      art.play().then(() => { /* ok */ }).catch(() => {
+        art.muted = true;
+        art.play().then(() => { art.notice.show = '已静音自动播放，点击音量开启声音'; }).catch(() => { /* 仍需手动点播放 */ });
+      });
+    };
+    art.on('ready', ensurePlay);
+
+    // 进度上报（节流 5s）
     let lastSent = 0;
-    const report = () => {
-      const p = propsRef.current;
-      if (!p.onProgress) return;
-      const dur = Number.isFinite(v.duration) ? v.duration : 0;
-      p.onProgress(v.currentTime, dur);
-      lastSent = Date.now();
+    art.on('video:timeupdate', () => {
+      const now = Date.now();
+      if (now - lastSent < 5000) return;
+      lastSent = now;
+      const d = Number.isFinite(art.duration) ? art.duration : 0;
+      propsRef.current.onProgress?.(art.currentTime, d);
+    });
+    art.on('video:pause', () => {
+      const d = Number.isFinite(art.duration) ? art.duration : 0;
+      propsRef.current.onProgress?.(art.currentTime, d);
+    });
+    art.on('video:ended', () => {
+      const d = Number.isFinite(art.duration) ? art.duration : 0;
+      propsRef.current.onProgress?.(art.currentTime, d);
+      propsRef.current.onEnded?.();
+    });
+
+    // 续播：等时长就绪后定位
+    let restored = false;
+    const tryRestore = async () => {
+      if (restored) return;
+      const dur = art.duration;
+      if (!Number.isFinite(dur) || dur <= 0) return;
+      restored = true;
+      try {
+        const saved = (await propsRef.current.getRestorePosition?.()) ?? 0;
+        if (saved > 10 && saved < dur - 2) {
+          art.currentTime = saved;
+          art.notice.show = `已从 ${fmt(saved)} 继续播放`;
+        }
+      } catch { /* ignore */ }
+      ensurePlay();
     };
-    const onTime = () => { if (Date.now() - lastSent > 5000) report(); };
-    const onPause = () => report();
-    const onEnded = () => { report(); propsRef.current.onEnded?.(); };
-    v.addEventListener('timeupdate', onTime);
-    v.addEventListener('pause', onPause);
-    v.addEventListener('ended', onEnded);
-    return () => {
-      v.removeEventListener('timeupdate', onTime);
-      v.removeEventListener('pause', onPause);
-      v.removeEventListener('ended', onEnded);
-    };
-  }, []);
+    art.on('ready', tryRestore);
+    art.on('video:loadedmetadata', tryRestore);
+    art.on('video:durationchange', tryRestore);
 
-  // 换源/换集：重建 hls（不重建 video）
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !props.url) return;
-
-    playbackStartedRef.current = false;
-    restoredRef.current = false;
-    recoveryRef.current?.dispose();
-    recoveryRef.current = new PlaybackRecovery();
-
-    setupHls(video, props.url, true);
-
-    return () => {
-      recoveryRef.current?.dispose();
-      recoveryRef.current = null;
-      hlsRef.current?.destroy();
-      hlsRef.current = null;
-    };
+    return () => { try { art.destroy(false); } catch { /* ignore */ } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.url, props.episodeKey]);
 
-  function finishRestore() {
-    const video = videoRef.current;
-    const p = propsRef.current;
-    if (!video || restoredRef.current) return;
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    if (duration <= 0) return; // duration 未就绪，等后续事件再试
-    (async () => {
-      try {
-        const saved = (await p.getRestorePosition?.()) ?? 0;
-        const curDur = Number.isFinite(video.duration) ? video.duration : duration;
-        if (saved > 10 && saved < curDur - 2) {
-          video.currentTime = saved;
-          p.onHint?.(`已从 ${fmt(saved)} 继续播放`);
+  return <div ref={hostRef} className="artplayer-host" style={{ width: '100%', height: '100%' }} />;
+}
+
+function setupHls(video: HTMLVideoElement, mediaUrl: string, art: Artplayer, allowProxyFallback: boolean) {
+  const recovery = new PlaybackRecovery();
+  const hls = new Hls(buildHlsConfig());
+  (art as any).hls = hls;
+  hls.loadSource(mediaUrl);
+  hls.attachMedia(video);
+
+  hls.on(Hls.Events.MANIFEST_PARSED, () => recovery.markHealthy());
+  hls.on(Hls.Events.FRAG_LOADED, () => recovery.markHealthy());
+
+  hls.on(Hls.Events.ERROR, (_e, data) => {
+    if (!data.fatal) return;
+    const decision = recovery.onFatal(data.type, data.details);
+    switch (decision.action) {
+      case 'ignore': break;
+      case 'retry': {
+        if (allowProxyFallback && !mediaUrl.startsWith('/api/proxy')
+          && (decision.attempt >= 2 || data.details === 'manifestLoadError')) {
+          art.notice.show = '直连失败，改用代理重试…';
+          hls.destroy();
+          setupHls(video, proxyURL(mediaUrl), art, false);
+          return;
         }
-      } catch { /* IndexedDB 之外的失败不阻塞 */ }
-      restoredRef.current = true;
-      video.play().catch(() => {});
-    })();
-  }
-
-  function setupHls(video: HTMLVideoElement, mediaUrl: string, allowProxyFallback: boolean) {
-    const p = propsRef.current;
-    hlsRef.current?.destroy();
-    const hls = new Hls(buildHlsConfig());
-    hlsRef.current = hls;
-
-    const onMeta = () => finishRestore();
-    const restoreEvents = ['loadedmetadata', 'durationchange', 'canplay'] as const;
-    restoreEvents.forEach(e => video.addEventListener(e, onMeta));
-
-    hls.loadSource(mediaUrl);
-    hls.attachMedia(video);
-
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      recoveryRef.current?.markHealthy();
-      finishRestore();
-    });
-    hls.on(Hls.Events.FRAG_LOADED, () => recoveryRef.current?.markHealthy());
-    hls.on(Hls.Events.FRAG_BUFFERED, () => { playbackStartedRef.current = true; });
-
-    hls.on(Hls.Events.ERROR, (_evt, data) => {
-      if (!data.fatal) return;
-      const recovery = recoveryRef.current;
-      if (!recovery) return;
-      const decision = recovery.onFatal(data.type, data.details);
-      switch (decision.action) {
-        case 'ignore': break;
-        case 'retry': {
-          // 前 2 次保留直连；到阈值或清单级错误时升级为代理（同源 cookie）
-          if (allowProxyFallback && !mediaUrl.startsWith('/api/proxy')
-            && (decision.attempt >= 2 || data.details === 'manifestLoadError')) {
-            p.onHint?.('直连失败，改用代理重试…');
-            restoreEvents.forEach(e => video.removeEventListener(e, onMeta));
-            setupHls(video, toProxyUrl(mediaUrl), false);
-            return;
-          }
-          p.onHint?.(`${decision.reason}（第 ${decision.attempt} 次）…`);
-          recovery.schedule(decision.delayMs, () => hls.startLoad());
-          break;
-        }
-        case 'recover-media': {
-          p.onHint?.(`${decision.reason}（第 ${decision.attempt} 次）…`);
-          if (decision.swapAudio) hls.swapAudioCodec();
-          hls.recoverMediaError();
-          break;
-        }
-        case 'switch-source': {
-          const message = `${describeHlsError(data.type, data.details)}：${decision.reason}`;
-          if (playbackStartedRef.current) {
-            p.onHint?.(message);
-            p.onRequestSwitchSource?.(decision.reason);
-          } else {
-            p.onError?.(`视频加载失败，${message}，请尝试其他片源`);
-          }
-          break;
-        }
+        art.notice.show = `${decision.reason}（第 ${decision.attempt} 次）…`;
+        recovery.schedule(decision.delayMs, () => hls.startLoad());
+        break;
       }
-    });
-  }
+      case 'recover-media': {
+        art.notice.show = `${decision.reason}（第 ${decision.attempt} 次）…`;
+        if (decision.swapAudio) hls.swapAudioCodec();
+        hls.recoverMediaError();
+        break;
+      }
+      case 'switch-source': {
+        art.notice.show = `${describeHlsError(data.type, data.details)}：${decision.reason}`;
+        break;
+      }
+    }
+  });
 
-  return (
-    <div className="player-wrap">
-      <video ref={videoRef} className="player-video" controls playsInline preload="metadata" />
-    </div>
-  );
-});
-
-export default Player;
+  art.once('destroy', () => { try { hls.destroy(); } catch { /* ignore */ } });
+}
 
 function fmt(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
+  const m = Math.floor(s / 60);
   const r = s % 60;
-  return h > 0
-    ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
-    : `${m}:${String(r).padStart(2, '0')}`;
+  return `${m}:${String(r).padStart(2, '0')}`;
 }

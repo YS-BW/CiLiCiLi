@@ -225,3 +225,26 @@ img { display: block; }
 .card-del { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
   background: rgba(0,0,0,.72); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; z-index: 3; }
 .card-del:hover { background: #e50914; }
+
+/* ---------- Netflix 风格全屏播放页（ArtPlayer） ---------- */
+.nf-player { position: fixed; inset: 0; background: #000; z-index: 200; display: flex; flex-direction: column; }
+.nf-top { position: absolute; top: 0; left: 0; right: 0; z-index: 30; display: flex; align-items: center; gap: 16px;
+  padding: 16px 24px; background: linear-gradient(180deg, rgba(0,0,0,.8), transparent); color: #fff; }
+.nf-back { color: #fff; font-size: 16px; padding: 6px 10px; border-radius: 6px; }
+.nf-back:hover { background: rgba(255,255,255,.12); }
+.nf-title { font-weight: 600; font-size: 16px; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.nf-top-right { display: flex; gap: 10px; }
+.nf-btn { background: rgba(255,255,255,.14); padding: 8px 14px; border-radius: 6px; color: #fff; font-size: 13px; }
+.nf-btn:hover { background: rgba(255,255,255,.24); }
+.nf-video { flex: 1; min-height: 0; position: relative; background: #000; }
+.nf-video .artplayer-host { width: 100%; height: 100%; }
+.nf-eps-panel { position: absolute; right: 0; top: 0; bottom: 0; width: min(440px, 82vw); background: rgba(10,10,10,.97);
+  z-index: 40; padding: 68px 18px 18px; overflow: auto; border-left: 1px solid #222; }
+.nf-eps-head { font-weight: 700; margin-bottom: 12px; }
+.nf-eps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.nf-ep { padding: 10px 8px; background: #1c1c1c; border: 1px solid #2c2c2c; border-radius: 6px;
+  text-align: center; font-size: 13px; color: #ccc; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-ep.active { background: #e50914; color: #fff; border-color: #e50914; }
+.nf-ep:hover { border-color: #666; color: #fff; }
+.nf-hint { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); background: rgba(0,0,0,.8);
+  padding: 8px 18px; border-radius: 20px; font-size: 13px; color: #eee; z-index: 35; }
