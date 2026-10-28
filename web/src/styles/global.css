@@ -86,8 +86,8 @@ img { display: block; }
 .rows.flat { margin-top: 20px; }
 .row { margin-bottom: 40px; }
 .row h3 { font-size: 20px; font-weight: 700; margin: 0 48px 14px; }
-.rail { display: flex; gap: 14px; overflow-x: auto; padding: 6px 48px 24px; }
-.tile { width: 210px; flex: none; cursor: pointer; transition: transform .22s cubic-bezier(.2,.7,.3,1); position: relative; transform-origin: center bottom; }
+.rail { display: flex; gap: 14px; overflow-x: auto; overflow-y: hidden; padding: 18px 48px 30px; }
+.tile { width: 210px; flex: none; cursor: pointer; transition: transform .22s cubic-bezier(.2,.7,.3,1); position: relative; transform-origin: center center; }
 .tile:hover { transform: scale(1.08); z-index: 5; }
 .tile.poster-tile { width: 150px; }
 .tile .poster { aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; position: relative; background: linear-gradient(135deg,#232323,#0d0d0d); }
