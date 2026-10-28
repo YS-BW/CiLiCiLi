@@ -54,10 +54,23 @@ img { display: block; }
 .error-box { background: rgba(229,9,20,.12); border: 1px solid rgba(229,9,20,.4); color: #ff8a8a; padding: 12px 16px; border-radius: 8px; font-size: 14px; }
 
 /* ---------- hero billboard ---------- */
-.hero { position: relative; height: 82vh; min-height: 560px; display: flex; align-items: flex-end; }
+.hero { position: relative; height: 82vh; min-height: 560px; display: flex; align-items: flex-end; overflow: hidden; }
 .hero .bg { position: absolute; inset: 0; background-size: cover; background-position: center 20%; }
 .hero .bg::after { content: ""; position: absolute; inset: 0;
   background: linear-gradient(90deg, #000 6%, transparent 55%), linear-gradient(0deg, #000 4%, transparent 50%); }
+/* 背景层：竖版海报模糊+放大填充整屏 */
+.hero .bg-blur { position: absolute; inset: -8%; background-size: cover; background-position: center;
+  filter: blur(40px) saturate(1.2) brightness(.55); transform: scale(1.15); }
+/* 满屏横版剧照（TMDB backdrop）—— 真 Netflix 风 */
+.hero .bg-wide { position: absolute; inset: 0; background-size: cover; background-position: center 25%; }
+/* 主体层：清晰的竖版海报靠右 */
+.hero .hero-poster { position: absolute; top: 0; right: 8%; height: 100%; aspect-ratio: 2/3;
+  background-size: cover; background-position: center; box-shadow: 0 20px 80px rgba(0,0,0,.6); }
+/* 向左渐隐，让海报和文字过渡自然 */
+.hero .hero-fade { position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(90deg, #000 30%, rgba(0,0,0,.7) 48%, transparent 75%),
+    linear-gradient(0deg, #000 2%, transparent 45%); }
 .hero .content { position: relative; z-index: 2; padding: 0 48px 90px; max-width: 640px; }
 .kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 2px; color: #bbb; margin-bottom: 14px; }
 .kicker b { color: var(--accent); font-weight: 900; }
@@ -110,9 +123,15 @@ img { display: block; }
 @keyframes pl { 0%,100% { opacity: .25 } 50% { opacity: 1 } }
 
 /* ---------- detail ---------- */
-.detail-hero { position: relative; min-height: 62vh; display: flex; align-items: flex-end; }
+.detail-hero { position: relative; min-height: 62vh; display: flex; align-items: flex-end; overflow: hidden; padding-top: 90px; }
 .detail-hero .bg { position: absolute; inset: 0; background-size: cover; background-position: center 25%; }
 .detail-hero .bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg,#000 2%,transparent 65%), linear-gradient(90deg,#000 5%,transparent 65%); }
+/* 满屏横版剧照（TMDB backdrop） */
+.detail-hero .bg-wide { position: absolute; inset: 0; background-size: cover; background-position: center 25%; }
+.detail-hero .bg-wide::after { content: ""; position: absolute; inset: 0; background:
+  linear-gradient(0deg, #000 0%, rgba(0,0,0,.55) 28%, transparent 60%),
+  linear-gradient(90deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.6) 35%, transparent 70%); }
+.detail-hero .bg-blur { position: absolute; inset: -8%; background-size: cover; background-position: center; filter: blur(40px) brightness(.5); transform: scale(1.15); }
 .detail-hero .inner { position: relative; z-index: 2; padding: 0 48px 36px; width: 100%; }
 .detail-hero h1 { font-size: 44px; font-weight: 900; margin-bottom: 12px; letter-spacing: -.5px; }
 .detail-hero .meta { display: flex; gap: 14px; color: #ccc; font-size: 14px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }

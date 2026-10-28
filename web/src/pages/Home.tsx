@@ -9,6 +9,7 @@ export default function Home() {
   const [movies, setMovies] = useState<RecommendItem[]>([]);
   const [tvs, setTvs] = useState<RecommendItem[]>([]);
   const [history, setHistory] = useState<WatchProgress[]>([]);
+  const [heroBackdrop, setHeroBackdrop] = useState('');   // TMDB 横版剧照
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
@@ -21,6 +22,12 @@ export default function Home() {
           api.history(true, 20).catch(() => []),
         ]);
         setMovies(m); setTvs(t); setHistory(h);
+        // 主推：优先豆瓣电影第一项，其次剧集，最后继续观看
+        const head = m[0] || t[0];
+        if (head) {
+          const type = m[0] ? 'movie' : 'tv';
+          api.backdrop(head.title, type as 'movie' | 'tv').then(setHeroBackdrop).catch(() => {});
+        }
       } catch (e: any) {
         setErr(e?.message || '加载失败');
       } finally {
@@ -29,17 +36,31 @@ export default function Home() {
     })();
   }, []);
 
-  const featured = movies[0] || history[0] || null;
+  const featured = movies[0] || tvs[0] || history[0] || null;
   const heroTitle = featured ? ('title' in featured ? featured.title : '') : '';
-  const heroCover = featured ? ('backdrop' in (featured as any) ? (featured as any).backdrop : (featured as any).cover || (featured as any).pic) : '';
+  const heroRaw = featured ? ('cover' in (featured as any) ? (featured as any).cover : (featured as any).pic) : '';
+  // 竖版海报（豆瓣小图 → raw 原图），作为无 TMDB 横版图时的回退
+  const heroPoster = api.hiResCover(heroRaw || '');
+  const hasWide = !!heroBackdrop;
+  const heroBg = hasWide ? api.proxyUrl(heroBackdrop) : (heroPoster ? api.proxyUrl(heroPoster) : '');
 
   return (
     <div>
       {loading ? (
         <div className="hero-skeleton" />
       ) : featured ? (
-        <section className="hero">
-          <div className="bg" style={{ backgroundImage: heroCover ? `url(${api.proxyUrl(heroCover)})` : 'radial-gradient(120% 90% at 78% 30%,#3a2a20,#050505)' }} />
+        <section className={`hero${hasWide ? ' wide' : ''}`}>
+          {heroBg ? (
+            <>
+              {!hasWide && <div className="bg-blur" style={{ backgroundImage: `url(${heroBg})` }} />}
+              {hasWide
+                ? <div className="bg-wide" style={{ backgroundImage: `url(${heroBg})` }} />
+                : <div className="hero-poster" style={{ backgroundImage: `url(${heroBg})` }} />}
+            </>
+          ) : (
+            <div className="bg" style={{ background: 'radial-gradient(120% 90% at 78% 30%,#3a2a20,#050505)' }} />
+          )}
+          <div className="hero-fade" />
           <div className="content">
             <div className="kicker"><b>C</b> 本周推荐</div>
             <h1>{heroTitle}</h1>

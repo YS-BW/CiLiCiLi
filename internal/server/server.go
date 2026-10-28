@@ -110,6 +110,7 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/publish", guard(d.API.NotImplemented("源发布")))
 	mux.HandleFunc("GET /api/douban", guard(d.API.Douban))
 	mux.HandleFunc("GET /api/hot-list", guard(d.API.HotList))
+	mux.HandleFunc("GET /api/backdrop", guard(d.API.Backdrop))
 	mux.HandleFunc("GET /api/live/playlist", guard(d.API.LivePlaylist))
 	mux.HandleFunc("GET /api/live/epg", guard(d.API.LiveEPG))
 	mux.HandleFunc("POST /api/live/probe", guard(d.API.LiveProbe))

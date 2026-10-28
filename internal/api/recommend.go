@@ -7,8 +7,32 @@ import (
 	"strings"
 
 	"cilicili/internal/httpx"
+	"cilicili/internal/media"
 	"cilicili/internal/recommend"
 )
+
+// Backdrop 按标题查第三方横版剧照（TMDB），返回 {backdrop}。
+// 供 Web 首页主推大图使用；无 provider / 查不到时 backdrop 为空串（前端回退竖版海报）。
+func (a *API) Backdrop(w http.ResponseWriter, r *http.Request) {
+	if a.deps.Media == nil {
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"backdrop": ""})
+		return
+	}
+	title := strings.TrimSpace(r.URL.Query().Get("title"))
+	if title == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "缺少 title")
+		return
+	}
+	kind := media.KindMovie
+	if r.URL.Query().Get("type") == "tv" {
+		kind = media.KindTV
+	}
+	url, err := a.deps.Media.LookupBackdrop(r.Context(), title, kind)
+	if err != nil {
+		a.deps.Log.Debug("backdrop lookup failed", "err", err)
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"backdrop": url})
+}
 
 // Douban 返回豆瓣推荐。
 func (a *API) Douban(w http.ResponseWriter, r *http.Request) {

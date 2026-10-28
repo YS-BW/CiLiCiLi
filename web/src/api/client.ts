@@ -107,6 +107,11 @@ export const api = {
   hotList: (id: string) =>
     jsonFetch<{ items: RecommendItem[] }>(`/api/hot-list?id=${encodeURIComponent(id)}`).then(r => r.items || []),
 
+  // 按标题查 TMDB 横版剧照（首页主推大图用）
+  backdrop: (title: string, type: 'movie' | 'tv' = 'movie') =>
+    jsonFetch<{ backdrop: string }>(`/api/backdrop?title=${encodeURIComponent(title)}&type=${type}`)
+      .then(r => r.backdrop || '').catch(() => ''),
+
   history: (unfinished = false, limit = 50) =>
     jsonFetch<{ items: WatchProgress[] }>(
       `/api/me/history?unfinished=${unfinished ? 1 : 0}&limit=${limit}`).then(r => r.items || []),
@@ -137,9 +142,19 @@ export const api = {
     }
     return t;
   },
+
+  // 豆瓣海报升级到高清：s_ratio_poster(小) / m(中) → raw(原图 1080)。仅用于首屏主推大图。
+  hiResCover(raw: string): string {
+    const t = (raw || '').trim();
+    if (!t) return '';
+    if (t.includes('doubanio.com')) {
+      // 统一替换尺寸段为 raw；l/m/s_ratio_poster 都可能是原 id
+      return t.replace(/\/(s|l|m|xl|r)_ratio_poster\//, '/raw/');
+    }
+    return t;
+  },
 };
 
-// 前端即时聚合：与后端同规则（类型+归一化标题+年份），首源到达即可出卡。
 const TITLE_RE = /[\s·•:：,，.。!！?？()（）\[\]【】《》<>"']+/g;
 
 function normTitle(raw: string): string {

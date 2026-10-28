@@ -94,6 +94,37 @@ func (m *Manager) ProviderNames() []string {
 
 func (m *Manager) Store() *Store { return m.store }
 
+// LookupBackdrop 按标题查第三方横版图（16:9），返回最高分带 backdrop 的候选 URL。
+// 供首页主推大图使用：豆瓣推荐只有竖版小海报，横版剧照只能从 TMDB 拿。
+// 找不到 / 未启用 provider 时返回空串（调用方回退竖版海报）。
+func (m *Manager) LookupBackdrop(ctx context.Context, title string, kind Kind) (string, error) {
+	if m == nil {
+		return "", nil
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "", nil
+	}
+	if kind != KindTV && kind != KindMovie {
+		kind = KindMovie
+	}
+	for _, p := range m.providers {
+		if p == nil || !p.Enabled() {
+			continue
+		}
+		cands, err := p.Search(ctx, Request{Kind: kind, Title: title})
+		if err != nil {
+			continue
+		}
+		for _, c := range cands {
+			if strings.TrimSpace(c.BackdropURL) != "" {
+				return c.BackdropURL, nil
+			}
+		}
+	}
+	return "", nil
+}
+
 // UpsertItems 把搜索结果写入媒体库，返回 item 对应的 mediaID（可能为空）。
 // 缺年份/类型未知的条目不会聚合成媒体实体。
 func (m *Manager) UpsertItems(items []model.SearchResultItem, now time.Time) (map[string]string, error) {

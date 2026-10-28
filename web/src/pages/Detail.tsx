@@ -17,6 +17,7 @@ export default function Detail() {
   const [playing, setPlaying] = useState(false);
   const [hint, setHint] = useState('');
   const [faved, setFaved] = useState(false);
+  const [backdrop, setBackdrop] = useState('');
   const playerRef = useRef<PlayerHandle | null>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -38,6 +39,8 @@ export default function Detail() {
           if (found >= 0) ep = found;
         }
         setEpIdx(ep);
+        // 详情页背景大图：按标题查 TMDB 横版剧照（豆瓣/采集站只有竖版封面）
+        api.backdrop(viTitle(d), isTvType(d) ? 'tv' : 'movie').then(bd => { if (bd) setBackdrop(bd); }).catch(() => {});
       } catch (e: any) {
         setErr(e?.message || '详情加载失败');
       } finally {
@@ -118,12 +121,21 @@ export default function Detail() {
   if (!detail) return null;
 
   const vi = detail.videoInfo;
-  const bg = detail.playLines && (detail as any).backdrop ? (detail as any).backdrop : vi.cover;
+  // 优先 TMDB 横版剧照；没有则回退竖版封面（模糊铺底 + 底部渐变）
+  const bg = backdrop || vi.cover;
+  const isWideBg = !!backdrop;
 
   return (
     <div>
-      <section className="detail-hero">
-        <div className="bg" style={{ backgroundImage: bg ? `url(${api.proxyUrl(bg)})` : 'radial-gradient(120% 100% at 70% 20%,#2f2418,#050505)' }} />
+      <section className={`detail-hero${isWideBg ? ' wide' : ''}`}>
+        {isWideBg ? (
+          <div className="bg-wide" style={{ backgroundImage: `url(${api.proxyUrl(bg)})` }} />
+        ) : (
+          <>
+            {bg ? <div className="bg-blur" style={{ backgroundImage: `url(${api.proxyUrl(bg)})` }} /> : null}
+            <div className="bg" style={{ backgroundImage: bg ? `url(${api.proxyUrl(bg)})` : 'radial-gradient(120% 100% at 70% 20%,#2f2418,#050505)' }} />
+          </>
+        )}
         <div className="inner">
           <h1>{vi.title || vodId}</h1>
           <div className="meta">
@@ -190,3 +202,14 @@ export default function Detail() {
     </div>
   );
 }
+
+// 详情页查 backdrop 用的标题：优先 videoInfo.title，去掉尾部「第二季」等季数后缀影响不大，TMDB 能容忍。
+function viTitle(d: VideoDetail): string {
+  return (d.videoInfo?.title || '').trim();
+}
+// 粗判类型：剧集/动漫 → tv；其余按 movie。
+function isTvType(d: VideoDetail): boolean {
+  const t = `${d.videoInfo?.typeName || ''} ${d.videoInfo?.remarks || ''}`;
+  return /剧|连续|集|综艺|动漫|番剧|动画/.test(t);
+}
+
