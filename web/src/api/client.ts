@@ -100,7 +100,7 @@ export const api = {
   },
 
   douban: (type: 'movie' | 'tv' = 'movie', tag = '热门', pageStart = 0, pageSize = 25) =>
-    jsonFetch<{ items: RecommendItem[] }>(
+    jsonFetch<{ items: SearchMedia[] }>(
       `/api/douban?type=${type}&tag=${encodeURIComponent(tag)}&pageStart=${pageStart}&pageSize=${pageSize}`)
       .then(r => r.items || []),
 

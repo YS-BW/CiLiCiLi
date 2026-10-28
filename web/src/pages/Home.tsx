@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { RecommendItem, WatchProgress } from '../api/types';
+import type { SearchMedia, WatchProgress } from '../api/types';
 import PosterCard from '../components/PosterCard';
 
-// 模块级缓存：从其它页返回首页时先用缓存秒开，后台再刷新（SWR），避免骨架闪烁/仿佛重新加载。
+// 模块级缓存：从其它页返回首页时先用缓存秒开，后台再刷新（SWR），避免骨架闪烁。
 interface HomeCache {
-  movies: RecommendItem[];
-  tvs: RecommendItem[];
+  movies: SearchMedia[];
+  tvs: SearchMedia[];
   history: WatchProgress[];
-  heroTitle: string;
-  heroKind: 'movie' | 'tv';
   ts: number;
 }
 let HOME_CACHE: HomeCache | null = null;
@@ -18,12 +16,10 @@ let HOME_CACHE: HomeCache | null = null;
 export default function Home() {
   const nav = useNavigate();
   const cached = HOME_CACHE;
-  const [movies, setMovies] = useState<RecommendItem[]>(cached?.movies || []);
-  const [tvs, setTvs] = useState<RecommendItem[]>(cached?.tvs || []);
+  const [movies, setMovies] = useState<SearchMedia[]>(cached?.movies || []);
+  const [tvs, setTvs] = useState<SearchMedia[]>(cached?.tvs || []);
   const [history, setHistory] = useState<WatchProgress[]>(cached?.history || []);
-  const [heroTitleState, setHeroTitleState] = useState(cached?.heroTitle || '');
-  const [heroKindState, setHeroKindState] = useState<'movie' | 'tv'>(cached?.heroKind || 'movie');
-  const [loading, setLoading] = useState(!cached);   // 有缓存则不再显示骨架
+  const [loading, setLoading] = useState(!cached);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -35,10 +31,7 @@ export default function Home() {
           api.history(true, 20).catch(() => []),
         ]);
         setMovies(m); setTvs(t); setHistory(h);
-        const head = m[0] || t[0];
-        const kind: 'movie' | 'tv' = m[0] ? 'movie' : 'tv';
-        if (head) { setHeroTitleState(head.title); setHeroKindState(kind); }
-        HOME_CACHE = { movies: m, tvs: t, history: h, heroTitle: head?.title || '', heroKind: kind, ts: Date.now() };
+        HOME_CACHE = { movies: m, tvs: t, history: h, ts: Date.now() };
       } catch (e: any) {
         setErr(e?.message || '加载失败');
       } finally {
@@ -48,15 +41,25 @@ export default function Home() {
   }, []);
 
   const featured = movies[0] || tvs[0] || null;
-  const heroTitle = heroTitleState || (featured && 'title' in featured ? (featured as any).title : '');
-  const heroRaw = featured ? ('cover' in (featured as any) ? (featured as any).cover : (featured as any).pic) : '';
-  // 主推大图统一走 /api/cover big=1（TMDB 横版剧照，src 用豆瓣图兜底）
-  const heroBg = heroTitle ? api.coverUrl({ title: heroTitle, src: heroRaw || '', kind: heroKindState, big: true }) : '';
-  const heroPending = loading;
+  const heroTitle = featured?.title || '';
+  // 主推大图：TMDB 横版剧照；src 用卡片封面兜底（后端 big 只返回 TMDB 横图）
+  const heroBg = heroTitle
+    ? api.coverUrl({ title: heroTitle, year: featured?.year, kind: kindOf(featured), src: featured?.cover || firstPic(featured), big: true })
+    : '';
+
+  // 点卡片：直接用卡片自带的 sources 进详情（不再跳搜索）。
+  function openCard(m: SearchMedia) {
+    const s = m.sources?.[0];
+    if (s && s.sourceKey && s.vodId) {
+      nav(`/play/${encodeURIComponent(s.sourceKey)}/${encodeURIComponent(s.vodId)}`);
+    } else {
+      nav(`/search?wd=${encodeURIComponent(m.title)}`);
+    }
+  }
 
   return (
     <div>
-      {heroPending ? (
+      {loading ? (
         <div className="hero-skeleton" />
       ) : heroTitle ? (
         <section className="hero wide">
@@ -66,13 +69,13 @@ export default function Home() {
             <div className="kicker"><b>C</b> 本周推荐</div>
             <h1>{heroTitle}</h1>
             <div className="meta">
-              {(featured as any)?.score ? <span className="score">★ {(featured as any).score}</span> : null}
-              {(featured as any)?.year ? <span>{(featured as any).year}</span> : null}
-              {(featured as any)?.type ? <span>{(featured as any).type}</span> : null}
+              {featured?.year ? <span>{featured.year}</span> : null}
+              {featured?.typeName ? <span>{featured.typeName}</span> : null}
+              {featured && featured.sourceCount > 0 ? <span>{featured.sourceCount} 个片源</span> : null}
             </div>
-            <div className="desc">点击「搜索」按片名查找可用片源与线路。</div>
+            <div className="desc">点击下方卡片直接进入影片详情与播放。</div>
             <div>
-              <button className="btn play" onClick={() => nav(`/search?wd=${encodeURIComponent(heroTitle)}`)}>▶ 查找片源</button>
+              <button className="btn play" onClick={() => openCard(featured!)}>▶ 播放</button>
             </div>
           </div>
         </section>
@@ -102,9 +105,10 @@ export default function Home() {
             <h3>热门电影</h3>
             <div className="rail">
               {movies.map(m => (
-                <PosterCard key={m.id} title={m.title} kind="movie" src={m.cover || m.pic}
-                  sub={m.score ? `★ ${m.score}` : undefined}
-                  onClick={() => nav(`/search?wd=${encodeURIComponent(m.title)}`)} />
+                <PosterCard key={m.id} title={m.title} year={m.year} kind={kindOf(m)}
+                  src={m.sources?.[0]?.pic || m.cover}
+                  sub={m.sourceCount > 0 ? `${m.sourceCount} 源` : undefined}
+                  onClick={() => openCard(m)} />
               ))}
             </div>
           </div>
@@ -115,9 +119,10 @@ export default function Home() {
             <h3>热门剧集</h3>
             <div className="rail">
               {tvs.map(m => (
-                <PosterCard key={m.id} title={m.title} kind="tv" src={m.cover || m.pic}
-                  sub={m.score ? `★ ${m.score}` : undefined}
-                  onClick={() => nav(`/search?wd=${encodeURIComponent(m.title)}`)} />
+                <PosterCard key={m.id} title={m.title} year={m.year} kind={kindOf(m)}
+                  src={m.sources?.[0]?.pic || m.cover}
+                  sub={m.sourceCount > 0 ? `${m.sourceCount} 源` : undefined}
+                  onClick={() => openCard(m)} />
               ))}
             </div>
           </div>
@@ -129,4 +134,11 @@ export default function Home() {
       </div>
     </div>
   );
+}
+
+function kindOf(m?: SearchMedia | null): 'movie' | 'tv' {
+  return m && (m.kind === 'tv' || m.kind === 'anime') ? 'tv' : 'movie';
+}
+function firstPic(m?: SearchMedia | null): string {
+  return m?.sources?.[0]?.pic || '';
 }

@@ -3,7 +3,7 @@
 const seen = new Set<string>();
 const queue: string[] = [];
 let active = 0;
-const MAX_CONCURRENCY = 1;
+const MAX_CONCURRENCY = 4;
 
 function pump() {
   while (active < MAX_CONCURRENCY && queue.length > 0) {

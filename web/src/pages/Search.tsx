@@ -34,15 +34,13 @@ export default function Search() {
         if (ac.signal.aborted) return;
         if (e.type === 'source') {
           settled++;
-          if (e.ok && e.list.length) {
-            accItems = accItems.concat(e.list);
-            setMedia(api.getAggregate(accItems));  // 首源即可见
-          }
+          if (e.ok && e.list.length) accItems = accItems.concat(e.list);
           setSourceInfo(`已收到 ${settled}${total ? '/' + total : ''} 个源`);
         } else if (e.type === 'partial_done') {
-          setLoading(false);
-          if (accItems.length) setMedia(api.getAggregate(accItems));
+          // 软截止只更新进度提示，不渲染中间结果（本地聚合与后端去重不一致，避免列表跳动）
+          setSourceInfo(`已收到 ${settled}${total ? '/' + total : ''} 个源`);
         } else if (e.type === 'done') {
+          // 只渲染后端最终聚合结果（去重/排序后），列表一次成型、稳定
           const finalList = e.media && e.media.length ? e.media : api.getAggregate(e.list);
           setMedia(finalList);
           setDone(true); setLoading(false);

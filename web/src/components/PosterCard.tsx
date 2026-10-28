@@ -13,10 +13,11 @@ interface PosterCardProps {
   wide?: boolean;       // 16:9（继续观看）还是 2:3 海报
   progress?: number;
   onClick?: () => void;
+  onHover?: () => void;
 }
 
 // 统一卡片：所有封面经 /api/cover（后端 TMDB+源并发、缓存）。
-export default function PosterCard({ title, year, kind, src, cover, badge, sub, wide, progress, onClick }: PosterCardProps) {
+export default function PosterCard({ title, year, kind, src, cover, badge, sub, wide, progress, onClick, onHover }: PosterCardProps) {
   const imgSrc = src && src.startsWith('/')
     ? src
     : (cover && cover.startsWith('/') && !src ? cover : api.coverUrl({ title, year, kind, src: src || cover, big: false }));
@@ -28,7 +29,7 @@ export default function PosterCard({ title, year, kind, src, cover, badge, sub, 
   }, [title, year, kind, src, cover]);
 
   return (
-    <div className={`tile${wide ? '' : ' poster-tile'}`} onClick={onClick}>
+    <div className={`tile${wide ? '' : ' poster-tile'}`} onClick={onClick} onMouseEnter={onHover}>
       <div className="poster">
         <img src={imgSrc} alt={title} loading="lazy" decoding="async"
              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />

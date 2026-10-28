@@ -1,13 +1,17 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"cilicili/internal/httpx"
 	"cilicili/internal/media"
+	"cilicili/internal/model"
 	"cilicili/internal/recommend"
 )
 
@@ -70,7 +74,109 @@ func (a *API) Douban(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadGateway, "豆瓣推荐获取失败")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
+	// 对每个豆瓣榜单条目走一遍搜索聚合，返回与搜索页一致的 media 卡片（自带 sources/vodId），
+	// 这样首页点卡片可直接进详情页，而不是跳搜索。
+	cards := a.enrichDoubanMedia(r.Context(), typ, tag, pageStart, items)
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": cards})
+}
+
+// doubanMediaCache 缓存“豆瓣榜单 → 聚合卡片”结果，避免每次首页都重复跑几十次搜索。
+type doubanMediaEntry struct {
+	items []media.SearchMedia
+	exp   int64
+}
+
+var doubanMediaCache sync.Map // key -> doubanMediaEntry
+
+// enrichDoubanMedia 把豆瓣榜单条目按标题并发搜索聚合成 media 卡片。
+func (a *API) enrichDoubanMedia(ctx context.Context, typ, tag string, pageStart int, items []model.DoubanItem) []media.SearchMedia {
+	mk := "douban_media:" + typ + ":" + tag + ":" + strconv.Itoa(pageStart)
+	if v, ok := doubanMediaCache.Load(mk); ok {
+		e := v.(doubanMediaEntry)
+		if time.Now().UnixMilli() < e.exp {
+			return e.items
+		}
+	}
+	empty := []media.SearchMedia{}
+	if a.deps.Media == nil || a.deps.Searcher == nil || a.deps.Registry == nil {
+		return empty
+	}
+	// 选源：与搜索一致的 fast + 存活过滤。
+	valid := make([]model.SourceConfig, 0)
+	for _, s := range a.deps.Registry.List() {
+		if strings.HasPrefix(s.URL, "http://") || strings.HasPrefix(s.URL, "https://") {
+			valid = append(valid, s)
+		}
+	}
+	fast := a.deps.Searcher.SelectFast(valid, a.deps.Cfg.SearchFastSources)
+	now := time.Now()
+	alive := make([]model.SourceConfig, 0, len(fast))
+	for _, s := range fast {
+		if !a.deps.Registry.Health().IsOpen(s.Key, now) {
+			alive = append(alive, s)
+		}
+	}
+	if len(alive) > 0 {
+		fast = alive
+	}
+
+	out := make([]media.SearchMedia, len(items))
+	sem := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+	for i := range items {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			it := items[i]
+			card := media.SearchMedia{
+				ID: "douban:" + it.ID, Title: it.Title, Cover: it.Cover,
+				Kind: media.KindMovie, MatchStatus: media.MatchPending,
+			}
+			if it.IsTV {
+				card.Kind = media.KindTV
+			}
+			resp, serr := a.deps.Searcher.Search(ctx, it.Title, fast, true)
+			if serr == nil && len(resp.List) > 0 {
+				if cards, cerr := a.deps.Media.SearchCards(resp.List, now); cerr == nil && len(cards) > 0 {
+					best := pickCard(cards, it.Title)
+					if best != nil {
+						best.Title = it.Title
+						if best.Cover == "" {
+							best.Cover = it.Cover
+						}
+						out[i] = *best
+						return
+					}
+				}
+			}
+			out[i] = card // 没搜到源：保留豆瓣封面，前端点击回退搜索
+		}(i)
+	}
+	wg.Wait()
+	doubanMediaCache.Store(mk, doubanMediaEntry{items: out, exp: time.Now().Add(10 * time.Minute).UnixMilli()})
+	return out
+}
+
+// pickCard 从聚合卡片里选标题最匹配的一张（无匹配则取第一张有源的）。
+func pickCard(cards []media.SearchMedia, title string) *media.SearchMedia {
+	want, _ := media.NormalizeTitle(title)
+	for i := range cards {
+		got, _ := media.NormalizeTitle(cards[i].Title)
+		if want != "" && got == want {
+			return &cards[i]
+		}
+	}
+	for i := range cards {
+		if len(cards[i].Sources) > 0 {
+			return &cards[i]
+		}
+	}
+	if len(cards) > 0 {
+		return &cards[0]
+	}
+	return nil
 }
 
 // HotList 返回影视榜单。

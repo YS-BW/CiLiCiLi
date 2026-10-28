@@ -61,7 +61,10 @@ func coverKey(title, year string, kind Kind, srcURL string) string {
 		if base == "" {
 			base = t
 		}
-		raw := base + "|" + strings.TrimSpace(year) + "|" + string(kind)
+		// 故意不含 year：让首页（无年份）预取与详情页（带年份）落到同一缓存 key，
+		// 预取结果可被详情页直接复用（同名不同年份翻拍极少，年份仅用于 TMDB 匹配取图）。
+		_ = year
+		raw := base + "|" + string(kind)
 		sum := sha1.Sum([]byte(raw))
 		return hex.EncodeToString(sum[:])[:24]
 	}

@@ -69,8 +69,19 @@ func (m *Manager) FetchCover(ctx context.Context, req CoverRequest) (*CoverResul
 		}
 	}
 
-	// 2) 并发拉取：small 走 TMDB 与源并发；big 只用 TMDB（大封面只来自 TMDB，
-	//    拿不到就 404，由前端用原站封面模糊打底，不返回竖版当大图）。
+	// 2) singleflight 合并同一 (key,variant) 的并发请求：预取与详情页对同一部片
+	//    只触发一次 TMDB/源拉取，其余请求复用同一结果，避免重复且更快。
+	v, err, _ := m.coverSF.Do(key+"|"+string(variant), func() (interface{}, error) {
+		return m.resolveCoverRace(req, key, variant)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*CoverResult), nil
+}
+
+// resolveCoverRace 实际并发拉取：small 走 TMDB 与源竞速；big 仅 TMDB。
+func (m *Manager) resolveCoverRace(req CoverRequest, key string, variant CoverVariant) (*CoverResult, error) {
 	tmdbCh := make(chan coverCand, 1)
 	srcCh := make(chan coverCand, 1)
 	hasSrc := !req.Big && strings.TrimSpace(req.SrcURL) != ""

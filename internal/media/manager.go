@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"golang.org/x/sync/singleflight"
 	"time"
 
 	"cilicili/internal/model"
@@ -43,6 +45,7 @@ type Manager struct {
 	stop     chan struct{}
 	started  bool
 	cooldown map[string]time.Time
+	coverSF  singleflight.Group
 }
 
 // NewManager 创建 Manager。
