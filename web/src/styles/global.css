@@ -328,3 +328,23 @@ img { display: block; }
   .tile { scroll-snap-align: start; }
   .search-status { position: sticky; }
 }
+
+/* ---------- 顶栏：单行(品牌/搜索/设置) + 下滑自动隐藏 + SVG 图标 ---------- */
+.nav { transition: transform .28s ease, background .3s; }
+.nav.nav-hidden { transform: translateY(-100%); }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; color: #e8eaed; }
+.nav-search-icon { opacity: .6; display: inline-flex; align-items: center; }
+.nav-search-icon svg { display: block; }
+.tabbar a svg { display: block; }
+.tabbar a span { font-size: 11px; }
+
+@media (max-width: 720px) {
+  .nav { flex-wrap: nowrap !important; padding: 8px 12px !important; gap: 8px !important; }
+  .brand { font-size: 18px !important; }
+  .nav .links { display: none !important; }
+  .nav-search-wrap { order: 0 !important; flex: 1 1 auto !important; flex-basis: auto !important; justify-content: stretch !important; min-width: 0; }
+  .nav-search { width: 100% !important; padding: 6px 10px !important; }
+  .nav-search input { font-size: 13px; }
+  .nav-right { order: 0 !important; }
+  .tabbar { display: flex !important; }
+}
