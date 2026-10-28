@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { SearchMedia, StreamEvent } from '../api/types';
-import PosterCard from '../components/PosterCard';
+
+function kindOf(m: SearchMedia): 'movie' | 'tv' {
+  return m.kind === 'tv' || m.kind === 'anime' ? 'tv' : 'movie';
+}
 
 export default function Search() {
   const nav = useNavigate();
@@ -10,7 +13,7 @@ export default function Search() {
   const wd = params.get('wd') || '';
   const [input, setInput] = useState(wd);
   const [media, setMedia] = useState<SearchMedia[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [done, setDone] = useState(false);
   const [sourceInfo, setSourceInfo] = useState('');
   const [err, setErr] = useState('');
@@ -19,16 +22,35 @@ export default function Search() {
 
   useEffect(() => { setInput(wd); if (wd) run(wd); /* eslint-disable-next-line */ }, [wd]);
 
+  // 每个源结算就增量渲染（同安卓）：首源立即出结果，后续源节流合入，避免频繁重排。
   async function run(keyword: string) {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    setLoading(true); setDone(false); setErr(''); setMedia([]); setSourceInfo('');
+    setStreaming(true); setDone(false); setErr(''); setMedia([]); setSourceInfo('');
 
-    // 累加各源结果；**第一个源一返回就立即渲染**（不等所有源），done 时用后端最终结果定稿。
     let accItems: any[] = [];
-    let settled = 0, total = 0;
-    let shownFirst = false;
+    let settled = 0;
+    let renderTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastRender = 0;
+
+    // 源阶段渲染时按关键词做相关性过滤（后端 done 也会做），避免先渲染一堆不相关再骤减。
+    const kw = keyword.trim().toLowerCase();
+    const doRender = () => {
+      if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+      lastRender = Date.now();
+      const relevant = accItems.filter((it: any) => {
+        const n = String(it.name || '').toLowerCase();
+        return kw === '' || n.includes(kw) || kw.includes(n);
+      });
+      setMedia(api.getAggregate(relevant));
+    };
+    const renderSoon = (force: boolean) => {
+      if (force) { doRender(); return; }
+      const gap = Date.now() - lastRender;
+      if (gap > 150) { doRender(); }
+      else if (!renderTimer) { renderTimer = setTimeout(doRender, 150 - gap); }
+    };
 
     try {
       await api.searchStream(keyword, (e: StreamEvent) => {
@@ -37,28 +59,25 @@ export default function Search() {
           settled++;
           if (e.ok && e.list.length) {
             accItems = accItems.concat(e.list);
-            if (!shownFirst) {
-              // 首个返回结果的源 → 立即出现结果与封面，结束"加载中"
-              setMedia(api.getAggregate(accItems));
-              shownFirst = true;
-              setLoading(false);
-            }
+            renderSoon(!media.length && accItems.length > 0); // 首源立即渲染
           }
-          setSourceInfo(`已收到 ${settled}${total ? '/' + total : ''} 个源`);
+          setSourceInfo(`${settled} 个源已返回`);
         } else if (e.type === 'partial_done') {
-          setSourceInfo(`已收到 ${settled}${total ? '/' + total : ''} 个源`);
+          if (accItems.length) renderSoon(true);
         } else if (e.type === 'done') {
-          // 后端最终聚合结果（去重/排序）定稿
+          if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
           const finalList = e.media && e.media.length ? e.media : api.getAggregate(e.list);
           setMedia(finalList);
-          setDone(true); setLoading(false);
+          setDone(true); setStreaming(false);
         }
       }, ac.signal);
-      setDone(true); setLoading(false);
+      setDone(true); setStreaming(false);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       setErr(e?.message || '搜索失败');
-      setLoading(false); setDone(true);
+      setStreaming(false); setDone(true);
+    } finally {
+      if (renderTimer) clearTimeout(renderTimer);
     }
   }
 
@@ -74,6 +93,7 @@ export default function Search() {
     if (filter === 'movie') return m.kind === 'movie';
     return m.kind === 'tv' || m.kind === 'anime';
   });
+  const waitingFirst = streaming && media.length === 0;
 
   return (
     <div className="page-pad" style={{ paddingTop: 100 }}>
@@ -87,8 +107,9 @@ export default function Search() {
         <span className={filter === 'tv' ? 'active' : ''} onClick={() => setFilter('tv')}>剧集与动漫</span>
       </div>
 
-      {loading ? <div className="search-status"><span className="dotpulse" />{sourceInfo || '搜索中…'}</div>
-        : done && wd ? <div className="search-status">共 {filtered.length} 部作品{sourceInfo ? ` · ${sourceInfo}` : ''}</div> : null}
+      {waitingFirst ? <div className="search-status"><span className="dotpulse" />搜索中…</div>
+        : streaming ? <div className="search-status"><span className="dotpulse" />搜索中 · {sourceInfo} · 已 {filtered.length} 部</div>
+          : done && wd ? <div className="search-status">共 {filtered.length} 部作品{sourceInfo ? ` · ${sourceInfo}` : ''}</div> : null}
 
       {err ? <div className="error-box" style={{ marginBottom: 16 }}>{err}</div> : null}
 
@@ -100,10 +121,9 @@ export default function Search() {
           }}>
             <div className="poster">
               {(() => {
-                const kind: 'movie' | 'tv' = m.kind === 'tv' || m.kind === 'anime' ? 'tv' : 'movie';
                 const src = m.cover && m.cover.startsWith('/')
                   ? m.cover
-                  : api.coverUrl({ title: m.title, year: m.year, kind, src: m.sources[0]?.pic || m.cover, big: false });
+                  : api.coverUrl({ title: m.title, year: m.year, kind: kindOf(m), src: m.sources[0]?.pic || m.cover, big: false });
                 return <img src={src} alt={m.title} loading="lazy" decoding="async"
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />;
               })()}
@@ -114,7 +134,7 @@ export default function Search() {
         ))}
       </div>
 
-      {!loading && done && filtered.length === 0 && !err ? (
+      {!streaming && done && filtered.length === 0 && !err ? (
         <div className="center-fill"><div className="muted">没有找到「{wd}」的片源</div></div>
       ) : null}
     </div>
