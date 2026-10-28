@@ -118,7 +118,21 @@ export default function Player(props: PlayerProps) {
     art.on('video:loadedmetadata', tryRestore);
     art.on('video:durationchange', tryRestore);
 
-    return () => { try { art.destroy(false); } catch { /* ignore */ } };
+    // 卡顿看门狗：播放中时间轴长时间不动 → 提示可能是代理/网络拦截
+    let lastCt = 0, lastTs = Date.now(), stallNotified = false;
+    const watchdog = setInterval(() => {
+      const v = art.video;
+      if (!v || v.paused) { lastCt = v ? v.currentTime : 0; lastTs = Date.now(); return; }
+      const ct = v.currentTime;
+      if (Math.abs(ct - lastCt) < 0.2) {
+        if (!stallNotified && Date.now() - lastTs > 8000) {
+          art.notice.show = '播放卡住：若使用 Clash/代理，请把视频源域名设为直连，或关闭系统代理后重试';
+          stallNotified = true;
+        }
+      } else { lastCt = ct; lastTs = Date.now(); stallNotified = false; }
+    }, 2000);
+
+    return () => { clearInterval(watchdog); try { art.destroy(false); } catch { /* ignore */ } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.url, props.episodeKey]);
 
