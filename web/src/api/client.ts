@@ -132,15 +132,16 @@ export const api = {
     return aggregateItemsLocally(items);
   },
 
-  // 封面/图片经同源代理（豆瓣图必须走代理）
+  // 所有外部图片统一走同源 /api/proxy：
+  // - 规避采集源站/豆瓣/TMDB 的跨域与防盗链；
+  // - 后端对图片统一设 public,max-age=30天(+ETag)，浏览器稳定命中缓存，不再每次重拉；
+  // - 同源请求，无 CORS 问题。
   proxyUrl(raw: string): string {
     const t = (raw || '').trim();
     if (!t) return '';
-    if (t.startsWith('/')) return t;
-    if (t.includes('doubanio.com') || t.includes('douban.com')) {
-      return `/api/proxy?url=${encodeURIComponent(t)}`;
-    }
-    return t;
+    if (t.startsWith('/')) return t;                 // 已是站内地址（如 /api/media/xxx/cover）
+    if (t.startsWith('data:')) return t;
+    return `/api/proxy?url=${encodeURIComponent(t)}`;
   },
 
   // 豆瓣海报升级到高清：s_ratio_poster(小) / m(中) → raw(原图 1080)。仅用于首屏主推大图。
