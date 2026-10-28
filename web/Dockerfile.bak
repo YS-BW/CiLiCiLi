@@ -1,0 +1,18 @@
+# CiLiCiLi Web：多阶段构建 —— Node 构建静态产物，Nginx 托管并同源反代 /api。
+FROM node:20-alpine AS build
+WORKDIR /app
+# 规避 npm 在某些环境下的 "Exit handler never called" 与 fund/audit 噪音
+ENV NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false CI=true
+COPY package.json package-lock.json* ./
+RUN npm install --include=dev --no-audit --no-fund
+COPY . .
+RUN npm run build
+
+FROM nginx:1.27-alpine
+# 站点配置模板：只替换 ${BACKEND_UPSTREAM} 占位（避免 envsubst 误伤 nginx 的 $host/$uri）。
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.sh /docker-entrypoint.d/40-substitute-upstream.sh
+RUN chmod +x /docker-entrypoint.d/40-substitute-upstream.sh
+COPY --from=build /app/dist /usr/share/nginx/html
+ENV BACKEND_UPSTREAM=http://backend:8080
+EXPOSE 80

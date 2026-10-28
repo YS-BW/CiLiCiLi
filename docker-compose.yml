@@ -6,6 +6,11 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # 本地容器直连采集源：清空 Docker CLI 注入的宿主代理（~/.docker/config.json proxies）
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
       # 容器内路径固定，避免 .env 里为裸机写的 ./data 相对路径生效
       DATA_DIR: /data
       CACHE_DB: /data/cache.db
@@ -16,3 +21,16 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/data
+
+  web:
+    build: ./web
+    image: cilicili-web:latest
+    container_name: cilicili-web
+    restart: unless-stopped
+    depends_on:
+      - cilicili
+    environment:
+      # 同源反代目标：docker 网络内的后端服务名（容器内 8080）
+      BACKEND_UPSTREAM: http://cilicili:8080
+    ports:
+      - "3000:80"

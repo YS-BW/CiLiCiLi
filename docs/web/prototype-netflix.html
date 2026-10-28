@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CiLiCiLi Web —— Netflix / Apple TV 风原型</title>
+<style>
+  :root{
+    --bg:#000; --text:#fff; --muted:#a3a3a3; --accent:#e50914; /* netflix red */
+    --glass:rgba(20,20,20,.72);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"SF Pro Display","PingFang SC",sans-serif;overflow-x:hidden}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  .page{display:none}
+  .page.active{display:block}
+
+  /* ---------- top nav (fades in on scroll) ---------- */
+  .nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:26px;
+    padding:18px 48px;transition:background .3s;background:linear-gradient(180deg,rgba(0,0,0,.85),transparent)}
+  .brand{font-size:24px;font-weight:900;letter-spacing:-.5px;color:var(--accent);text-shadow:0 2px 10px rgba(229,9,20,.4)}
+  .nav .links{display:flex;gap:20px;font-size:14px;color:#ddd}
+  .nav .links a:hover{color:#fff}
+  .nav .links a.active{color:#fff;font-weight:600}
+  .nav .spacer{flex:1}
+  .nav .icon{font-size:17px;opacity:.85}
+  .nav .avatar{width:32px;height:32px;border-radius:6px;background:linear-gradient(135deg,#333,#111);border:1px solid #444}
+
+  /* ---------- billboard hero ---------- */
+  .hero{position:relative;height:82vh;min-height:560px;display:flex;align-items:flex-end}
+  .hero .bg{position:absolute;inset:0;background:
+      radial-gradient(120% 90% at 78% 30%,#3a2a20 0%,#0c0a09 60%),
+      linear-gradient(120deg,#241a12,#050505);}
+  .hero .bg::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,#000 8%,transparent 55%),linear-gradient(0deg,#000 6%,transparent 45%)}
+  .hero .content{position:relative;z-index:2;padding:0 48px 90px;max-width:620px}
+  .badge-n{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:2px;color:#bbb;margin-bottom:14px}
+  .badge-n b{color:var(--accent);font-weight:900}
+  .hero h1{font-size:58px;line-height:1.02;font-weight:900;letter-spacing:-1px;margin-bottom:16px;text-shadow:0 4px 30px rgba(0,0,0,.7)}
+  .hero .meta{display:flex;gap:14px;font-size:14px;color:#ccc;margin-bottom:16px;align-items:center}
+  .hero .meta .score{color:#46d369;font-weight:700}
+  .hero .desc{font-size:15px;color:#d8d8d8;line-height:1.6;margin-bottom:26px;max-width:520px}
+  .hero .btns{display:flex;gap:12px}
+  .btn{padding:12px 26px;border-radius:6px;font-size:15px;font-weight:700;display:inline-flex;align-items:center;gap:9px}
+  .btn.play{background:#fff;color:#000}
+  .btn.play:hover{background:#e6e6e6}
+  .btn.info{background:rgba(109,109,110,.7);color:#fff}
+  .btn.info:hover{background:rgba(109,109,110,.9)}
+
+  /* ---------- rows ---------- */
+  .rows{position:relative;z-index:3;margin-top:-90px;padding-bottom:60px}
+  .row{margin-bottom:42px}
+  .row h3{font-size:20px;font-weight:700;margin:0 48px 14px}
+  .rail{display:flex;gap:14px;overflow-x:auto;padding:6px 48px 26px;scroll-behavior:smooth}
+  .rail::-webkit-scrollbar{height:0}
+  .tile{width:210px;flex:none;cursor:pointer;transition:transform .25s cubic-bezier(.2,.7,.3,1);transform-origin:center bottom;position:relative}
+  .tile:hover{transform:scale(1.12);z-index:5}
+  .tile:hover .tinfo{opacity:1}
+  .tile .poster{aspect-ratio:16/9;border-radius:8px;overflow:hidden;position:relative;background:linear-gradient(135deg,#232323,#0d0d0d)}
+  .tile.wide .poster{aspect-ratio:16/9}
+  .tile .poster .fin{position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.6))}
+  .tile .name{margin-top:9px;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile .sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .tinfo{position:absolute;left:0;right:0;bottom:-6px;opacity:0;transition:.2s;font-size:11px;color:#bbb;padding:0 2px}
+  .tile.poster-tile{width:150px}
+  .tile.poster-tile .poster{aspect-ratio:2/3}
+  .bar{position:absolute;left:12px;right:12px;bottom:10px;height:3px;background:rgba(255,255,255,.25);border-radius:2px;z-index:2}
+  .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:2px}
+
+  /* ---------- search ---------- */
+  .search-head{padding:120px 48px 20px}
+  .search-head input{width:min(720px,100%);background:#141414;border:1px solid #2a2a2a;border-radius:8px;padding:16px 20px;color:#fff;font-size:17px;outline:none}
+  .search-head input:focus{border-color:#555}
+  .seg{display:flex;gap:10px;margin:20px 0 4px}
+  .seg span{padding:7px 16px;border-radius:20px;font-size:13px;color:#bbb;border:1px solid #2c2c2c;cursor:pointer}
+  .seg span.active{background:#fff;color:#000;font-weight:700;border-color:#fff}
+  .search-status{color:var(--muted);font-size:13px;padding:8px 48px 0;display:flex;align-items:center;gap:9px}
+  .dotpulse{width:7px;height:7px;border-radius:50%;background:#46d369;animation:pl 1.1s infinite}
+  @keyframes pl{0%,100%{opacity:.25}50%{opacity:1}}
+  .search-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:18px;padding:26px 48px 80px}
+  @media(max-width:1000px){.search-grid{grid-template-columns:repeat(3,1fr)}}
+  .scard{cursor:pointer}
+  .scard .poster{aspect-ratio:2/3;border-radius:8px;background:linear-gradient(135deg,#232323,#0d0d0d);position:relative;overflow:hidden;transition:.2s}
+  .scard:hover .poster{box-shadow:0 0 0 2px #fff}
+  .scard .srcbadge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.72);font-size:11px;padding:3px 8px;border-radius:5px}
+  .scard .n{margin-top:9px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ---------- detail ---------- */
+  .dhero{position:relative;min-height:70vh;display:flex;align-items:flex-end}
+  .dhero .bg{position:absolute;inset:0;background:radial-gradient(120% 100% at 70% 20%,#2f2418,#050505);}
+  .dhero .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#000 4%,transparent 60%),linear-gradient(90deg,#000 10%,transparent 60%)}
+  .dhero .inner{position:relative;z-index:2;padding:0 48px 40px;width:100%}
+  .dhero h1{font-size:46px;font-weight:900;margin-bottom:14px;letter-spacing:-.5px}
+  .dhero .meta{display:flex;gap:14px;color:#ccc;font-size:14px;margin-bottom:14px;align-items:center}
+  .dhero .meta .score{color:#46d369;font-weight:700}
+  .dhero .desc{max-width:560px;color:#d0d0d0;font-size:14px;line-height:1.6;margin-bottom:22px}
+  .dbtns{display:flex;gap:12px;margin-bottom:26px}
+  .lines{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:#999;flex-wrap:wrap}
+  .lines .l{padding:6px 14px;border-radius:6px;border:1px solid #333;cursor:pointer;color:#ccc}
+  .lines .l.active{background:#fff;color:#000;border-color:#fff;font-weight:700}
+  .eps{display:flex;gap:9px;flex-wrap:wrap;max-width:900px}
+  .ep{padding:8px 15px;border-radius:6px;background:#1c1c1c;border:1px solid #2c2c2c;font-size:13px;color:#bbb}
+  .ep.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .ep:hover{border-color:#666;color:#fff}
+  /* video modal */
+  .vmodal{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:80;display:none;align-items:center;justify-content:center}
+  .vmodal.show{display:flex}
+  .vbox{width:min(1100px,92vw);aspect-ratio:16/9;background:#000;border-radius:10px;position:relative;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.8)}
+  .vbox .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#8a8a8a}
+  .vbox .tri{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:30px;backdrop-filter:blur(4px)}
+  .vbar{position:absolute;left:0;right:0;bottom:0;padding:20px 26px;display:flex;align-items:center;gap:16px;font-size:13px;color:#ddd;background:linear-gradient(transparent,rgba(0,0,0,.85))}
+  .vbar .track{flex:1;height:4px;background:rgba(255,255,255,.25);border-radius:2px;position:relative}
+  .vbar .track i{position:absolute;left:0;top:0;bottom:0;width:30%;background:var(--accent);border-radius:2px}
+  .vclose{position:absolute;top:16px;right:20px;z-index:3;font-size:26px;color:#fff;opacity:.8}
+
+  /* favorites */
+  .favhead{padding:110px 48px 10px}
+  .favhead h1{font-size:34px;font-weight:900}
+  .fav-tabs{display:flex;gap:10px;padding:16px 48px 0}
+  .fav-tabs span{padding:7px 16px;border-radius:20px;font-size:13px;color:#bbb;border:1px solid #2c2c2c;cursor:pointer}
+  .fav-tabs span.active{background:#fff;color:#000;font-weight:700;border-color:#fff}
+
+  /* login */
+  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(120% 120% at 50% 0%,#1a0d0d,#000)}
+  .lcard{width:400px;background:rgba(0,0,0,.75);border:1px solid #222;border-radius:12px;padding:48px 44px;text-align:center}
+  .lcard .brand{font-size:32px;margin-bottom:10px}
+  .lcard p{color:#999;font-size:13px;margin-bottom:26px}
+  .lcard input{width:100%;background:#141414;border:1px solid #333;border-radius:6px;padding:14px 16px;color:#fff;font-size:15px;outline:none;margin-bottom:16px}
+  .lcard input:focus{border-color:#666}
+  .lcard .btn{width:100%;justify-content:center;background:var(--accent);color:#fff;padding:14px}
+  .lcard .hint{color:#777;font-size:12px;margin-top:16px}
+
+  .note{position:fixed;bottom:16px;right:16px;background:rgba(20,20,20,.9);border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;font-size:11px;color:#888;z-index:60;max-width:240px}
+  .note b{color:#ddd}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="brand">CILICILI</div>
+  <div class="links">
+    <a href="#" data-nav="home" class="active">首页</a>
+    <a href="#" data-nav="search">搜索</a>
+    <a href="#" data-nav="favorites">我的收藏</a>
+  </div>
+  <div class="spacer"></div>
+  <div class="icon" onclick="go('search')">🔍</div>
+  <div class="avatar" title="默认用户"></div>
+</div>
+
+<!-- ============ HOME ============ -->
+<div class="page active" id="page-home">
+  <section class="hero">
+    <div class="bg"></div>
+    <div class="content">
+      <div class="badge-n"><b>N</b> 系列 · 原创剧集</div>
+      <h1>庆余年 · 第二季</h1>
+      <div class="meta"><span class="score">★ 8.7</span><span>2024</span><span>国产剧</span><span>全 36 集</span><span>4K HDR</span></div>
+      <div class="desc">范闲假死归来，重返京都，在庆国的权力漩涡中周旋。一张嘴搅动天下，一双眼看尽权谋。</div>
+      <div class="btns">
+        <button class="btn play" onclick="openPlayer()">▶ 播放</button>
+        <button class="btn info" onclick="go('detail')">ⓘ 更多信息</button>
+      </div>
+    </div>
+  </section>
+  <div class="rows">
+    <div class="row"><h3>继续观看</h3><div class="rail" id="rail-continue"></div></div>
+    <div class="row"><h3>今日热门电影</h3><div class="rail" id="rail-movie"></div></div>
+    <div class="row"><h3>热门剧集</h3><div class="rail" id="rail-tv"></div></div>
+  </div>
+</div>
+
+<!-- ============ SEARCH ============ -->
+<div class="page" id="page-search">
+  <div class="search-head">
+    <input value="庆余年" readonly>
+    <div class="seg"><span class="active">全部</span><span>电影</span><span>剧集与动漫</span></div>
+  </div>
+  <div class="search-status"><span class="dotpulse"></span>已收到 8 / 18 个源 · 14 条结果 · 流式加载中</div>
+  <div class="search-grid" id="grid-search"></div>
+</div>
+
+<!-- ============ DETAIL ============ -->
+<div class="page" id="page-detail">
+  <section class="dhero">
+    <div class="bg"></div>
+    <div class="inner">
+      <h1>庆余年 · 第二季</h1>
+      <div class="meta"><span class="score">★ 8.7</span><span>2024</span><span>中国大陆</span><span>国产剧</span><span>全 36 集</span></div>
+      <div class="desc">范闲假死归来，重返京都，在庆国的权力漩涡中周旋。（此处展示采集源简介 / TMDB 元数据）</div>
+      <div class="dbtns">
+        <button class="btn play" onclick="openPlayer()">▶ 继续观看 · 第12集</button>
+        <button class="btn info" onclick="alert('已收藏')">☆ 收藏</button>
+        <button class="btn info">⇄ 换源</button>
+      </div>
+      <div class="lines">
+        <span>线路：</span>
+        <span class="l active">ffm3u8 · 直连</span>
+        <span class="l">ffm3u8 · 代理</span>
+        <span class="l">llm3u8</span>
+      </div>
+      <div class="eps">
+        <span class="ep active">第12集</span><span class="ep">第13集</span><span class="ep">第14集</span><span class="ep">第15集</span>
+        <span class="ep">第16集</span><span class="ep">第17集</span><span class="ep">第18集</span><span class="ep">第19集</span>
+        <span class="ep">第20集</span><span class="ep">第21集</span>
+      </div>
+    </div>
+  </section>
+  <div class="rows" style="margin-top:10px">
+    <div class="row"><h3>同片更多片源</h3><div class="rail" id="rail-sources"></div></div>
+  </div>
+</div>
+
+<!-- ============ FAVORITES ============ -->
+<div class="page" id="page-favorites">
+  <div class="favhead"><h1>我的收藏</h1></div>
+  <div class="fav-tabs"><span class="active">全部</span><span>电影</span><span>剧集</span></div>
+  <div class="search-grid" id="grid-fav"></div>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<div class="page" id="page-login">
+  <div class="login">
+    <div class="lcard">
+      <div class="brand">CILICILI</div>
+      <p>多源聚合影视 · 自建使用</p>
+      <input type="password" placeholder="服务器访问密码" value="••••••••">
+      <button class="btn" onclick="go('home')">登录</button>
+      <div class="hint">会话存于 httpOnly Cookie · 服务器地址在设置配置</div>
+    </div>
+  </div>
+</div>
+
+<!-- video modal -->
+<div class="vmodal" id="vmodal">
+  <div class="vbox">
+    <div class="vclose" onclick="closePlayer()">✕</div>
+    <div class="center">
+      <div class="tri">▶</div>
+      <div style="font-size:13px">直连 CDN · 1080P · hls.js</div>
+    </div>
+    <div class="vbar">
+      <span>▶</span>
+      <div class="track"><i></i></div>
+      <span>12:04 / 45:00</span><span>🔊</span><span>⚙</span><span>⛶</span>
+    </div>
+  </div>
+</div>
+
+<div class="note">🎬 <b>Netflix / Apple TV 风原型</b><br>点击卡片、播放按钮可交互。纯演示。</div>
+
+<script>
+  const data = {
+    continue: [["庆余年 第二季","第12集",62],["三体","第3集",28],["漫长的季节","第11集",85],["繁花","第7集",40],["狂飙","第24集",55],["与凤行","第2集",12]],
+    movie: [["流浪地球2","8.3"],["满江红","7.0"],["消失的她","6.5"],["孤注一掷","6.9"],["封神第一部","7.8"],["长安三万里","8.2"],["宇宙探索编辑部","8.3"]],
+    tv: [["漫长的季节","9.4"],["繁花","8.7"],["狂飙","8.5"],["三体","8.7"],["庆余年2","7.9"],["与凤行","7.2"],["去有风的地方","8.6"]],
+    search: [["庆余年 第二季","9 源"],["庆余年","8 源"],["庆余年之白首","3 源"],["庆余年 第一季","6 源"],["庆余年（预告）","2 源"],["庆余年 合集","4 源"]],
+    sources: [["非凡资源","直连 36集"],["360采集","直连 36集"],["暴风资源","直连 36集"],["量子资源","代理 36集"],["红牛资源","直连 36集"]],
+    fav: [["庆余年2","剧集"],["流浪地球2","电影"],["三体","剧集"],["漫长的季节","剧集"],["繁花","剧集"],["封神第一部","电影"]]
+  };
+  const tile = (t,s,prog)=>`<div class="tile ${prog!=null?'wide':''}" onclick="go('detail')">
+      <div class="poster"><div class="fin"></div>${prog!=null?`<div class="bar"><i style="width:${prog}%"></i></div>`:''}</div>
+      <div class="name">${t}</div><div class="sub">${s}</div></div>`;
+  const ptile = ([t,s])=>`<div class="tile poster-tile" onclick="go('detail')">
+      <div class="poster"><div class="fin"></div></div><div class="name">${t}</div><div class="sub">${s}</div></div>`;
+  const scard = ([t,s])=>`<div class="scard" onclick="go('detail')">
+      <div class="poster"><span class="srcbadge">${s}</span></div><div class="n">${t}</div></div>`;
+
+  document.getElementById('rail-continue').innerHTML = data.continue.map(([t,s,p])=>tile(t,s,p)).join('');
+  document.getElementById('rail-movie').innerHTML = data.movie.map(([t,s])=>ptile([t,'★ '+s])).join('');
+  document.getElementById('rail-tv').innerHTML = data.tv.map(([t,s])=>ptile([t,'★ '+s])).join('');
+  document.getElementById('rail-sources').innerHTML = data.sources.map(([t,s])=>tile(t,s)).join('');
+  document.getElementById('grid-search').innerHTML = data.search.map(scard).join('');
+  document.getElementById('grid-fav').innerHTML = data.fav.map(([t,s])=>`<div class="scard" onclick="go('detail')">
+      <div class="poster"><span class="srcbadge">${s}</span></div><div class="n">${t}</div></div>`).join('');
+
+  function go(page){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-'+page).classList.add('active');
+    document.querySelectorAll('.nav .links a').forEach(a=>a.classList.toggle('active', a.dataset.nav===page));
+    window.scrollTo({top:0});
+  }
+  function openPlayer(){ document.getElementById('vmodal').classList.add('show'); }
+  function closePlayer(){ document.getElementById('vmodal').classList.remove('show'); }
+  document.querySelectorAll('.nav .links a').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();go(a.dataset.nav);}));
+
+  // nav background on scroll
+  window.addEventListener('scroll',()=>{
+    const n=document.querySelector('.nav');
+    n.style.background = window.scrollY>40 ? '#0a0a0a' : 'linear-gradient(180deg,rgba(0,0,0,.85),transparent)';
+  });
+  // hash routes for screenshots
+  window.go=go; window.openPlayer=openPlayer; window.closePlayer=closePlayer;
+  window.addEventListener('DOMContentLoaded',()=>{const h=location.hash.replace('#','');if(h)go(h);});
+</script>
+</body>
+</html>

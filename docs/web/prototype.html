@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CiLiCiLi Web —— 产品原型</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --text:#e8eaed; --muted:#9aa0ab; --accent:#ff5c8a; --accent2:#4f8cff;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.5}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  .app{max-width:1180px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(15,17,21,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .topbar-inner{display:flex;align-items:center;gap:24px;height:64px}
+  .brand{font-size:20px;font-weight:800;letter-spacing:.5px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .nav{display:flex;gap:6px}
+  .nav a{padding:8px 14px;border-radius:10px;color:var(--muted);font-size:14px;transition:.15s}
+  .nav a:hover{background:var(--panel2);color:var(--text)}
+  .nav a.active{background:var(--panel2);color:var(--text)}
+  .search-mini{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;width:280px}
+  .search-mini input{background:none;border:none;outline:none;color:var(--text);width:100%;font-size:14px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));flex:none}
+  .page{padding:28px 0 80px;display:none}
+  .page.active{display:block}
+  h2.sec{font-size:18px;margin:6px 0 16px;display:flex;align-items:center;gap:10px}
+  h2.sec .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .muted{color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+  @media(max-width:900px){.grid{grid-template-columns:repeat(3,1fr)}}
+  .card{cursor:pointer;transition:.18s}
+  .card:hover{transform:translateY(-4px)}
+  .poster{position:relative;aspect-ratio:2/3;border-radius:10px;overflow:hidden;background:var(--panel2);display:flex;align-items:flex-end;padding:10px}
+  .poster .ph{position:absolute;inset:0;background:linear-gradient(135deg,#232838,#171a21)}
+  .poster .badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.55);font-size:11px;padding:3px 7px;border-radius:6px;z-index:2}
+  .poster .score{position:absolute;top:8px;right:8px;color:#ffd166;font-weight:700;font-size:13px;z-index:2}
+  .card .t{margin-top:9px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .s{font-size:12px;color:var(--muted)}
+  .row-list{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px}
+  .row-list .card{width:150px;flex:none}
+  .continue{display:flex;gap:14px;overflow-x:auto}
+  .cont-item{width:260px;flex:none;cursor:pointer}
+  .cont-thumb{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:linear-gradient(135deg,#232838,#171a21)}
+  .cont-bar{position:absolute;left:0;bottom:0;height:4px;background:var(--accent)}
+  .cont-item .t{margin-top:8px;font-size:14px;font-weight:600}
+  .cont-item .s{font-size:12px;color:var(--muted)}
+
+  /* search */
+  .search-hero{display:flex;gap:12px;margin-bottom:20px}
+  .search-hero input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 18px;color:var(--text);font-size:16px;outline:none}
+  .search-hero input:focus{border-color:var(--accent2)}
+  .chips{display:flex;gap:8px;margin-bottom:18px}
+  .chip{padding:6px 14px;border-radius:20px;border:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .status-line{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin-bottom:16px}
+  .pulse{width:8px;height:8px;border-radius:50%;background:var(--accent2);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+  /* detail / play */
+  .detail{display:grid;grid-template-columns:300px 1fr;gap:28px}
+  @media(max-width:800px){.detail{grid-template-columns:1fr}}
+  .detail-poster{aspect-ratio:2/3;border-radius:14px;background:linear-gradient(135deg,#232838,#171a21)}
+  .detail-info h1{font-size:26px;margin-bottom:8px}
+  .meta{color:var(--muted);font-size:14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px}
+  .desc{color:#c3c8d2;font-size:14px;margin-bottom:20px;max-width:680px}
+  .btn{padding:10px 22px;border-radius:10px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--text)}
+  .btn-row{display:flex;gap:12px;margin-bottom:26px}
+  .player-box{aspect-ratio:16/9;background:#000;border-radius:12px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+  .player-box .center{display:flex;flex-direction:column;align-items:center;gap:10px;color:#7a8090}
+  .play-tri{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:26px}
+  .player-bar{position:absolute;left:0;right:0;bottom:0;padding:12px 16px;background:linear-gradient(transparent,rgba(0,0,0,.8));display:flex;align-items:center;gap:12px;font-size:12px;color:#cdd2da}
+  .player-bar .track{flex:1;height:4px;background:rgba(255,255,255,.2);border-radius:2px;position:relative}
+  .player-bar .track i{position:absolute;left:0;top:0;bottom:0;width:32%;background:var(--accent);border-radius:2px}
+  .linebar{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+  .linebar .l{padding:5px 12px;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+  .linebar .l.active{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+  .eps{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow:auto}
+  .ep{padding:6px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .ep.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+  /* login */
+  .login-wrap{min-height:calc(100vh - 64px);display:flex;align-items:center;justify-content:center}
+  .login-card{width:360px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:36px 30px;text-align:center}
+  .login-card .brand{font-size:26px;margin-bottom:6px}
+  .login-card p{color:var(--muted);font-size:13px;margin-bottom:24px}
+  .login-card input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;outline:none;margin-bottom:14px}
+  .login-card .btn{width:100%;justify-content:center;padding:12px}
+  .hint{font-size:12px;color:var(--muted);margin-top:14px}
+  .note{position:fixed;bottom:18px;right:18px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--muted);z-index:50;max-width:260px}
+  .note b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="app topbar-inner">
+    <div class="brand">CiLiCiLi</div>
+    <nav class="nav">
+      <a href="#" data-nav="home" class="active">首页</a>
+      <a href="#" data-nav="search">搜索</a>
+      <a href="#" data-nav="favorites">收藏</a>
+    </nav>
+    <div class="search-mini" onclick="go('search')">
+      <span>🔍</span><input placeholder="搜索影片…" readonly>
+    </div>
+    <div class="avatar" title="默认用户"></div>
+  </div>
+</div>
+
+<!-- 首页 -->
+<div class="page active" id="page-home">
+  <div class="app">
+    <h2 class="sec" style="margin-top:10px"><span class="dot"></span>继续观看</h2>
+    <div class="continue">
+      <div class="cont-item" onclick="go('detail')">
+        <div class="cont-thumb"><div class="cont-bar" style="width:62%"></div></div>
+        <div class="t">庆余年 第二季</div><div class="s">第 12 集 · 剩 23 分钟</div>
+      </div>
+      <div class="cont-item" onclick="go('detail')">
+        <div class="cont-thumb"><div class="cont-bar" style="width:28%"></div></div>
+        <div class="t">三体</div><div class="s">第 3 集 · 剩 31 分钟</div>
+      </div>
+      <div class="cont-item" onclick="go('detail')">
+        <div class="cont-thumb"><div class="cont-bar" style="width:85%"></div></div>
+        <div class="t">漫长的季节</div><div class="s">第 11 集 · 剩 6 分钟</div>
+      </div>
+    </div>
+
+    <h2 class="sec" style="margin-top:32px"><span class="dot"></span>豆瓣热门电影</h2>
+    <div class="grid" id="grid-movie"></div>
+
+    <h2 class="sec" style="margin-top:32px"><span class="dot"></span>豆瓣热门剧集</h2>
+    <div class="grid" id="grid-tv"></div>
+  </div>
+</div>
+
+<!-- 搜索 -->
+<div class="page" id="page-search">
+  <div class="app">
+    <h2 class="sec" style="margin-top:10px"><span class="dot"></span>搜索</h2>
+    <div class="search-hero">
+      <input value="庆余年" readonly>
+      <button class="btn primary">搜索</button>
+    </div>
+    <div class="chips">
+      <span class="chip active">全部</span><span class="chip">电影</span><span class="chip">剧集与动漫</span>
+    </div>
+    <div class="status-line"><span class="pulse"></span>已收到 8/18 个源 · 14 条结果（流式中，可继续出结果）</div>
+    <div class="grid" id="grid-search"></div>
+  </div>
+</div>
+
+<!-- 详情/播放 -->
+<div class="page" id="page-detail">
+  <div class="app">
+    <div class="player-box">
+      <div class="center">
+        <div class="play-tri">▶</div>
+        <div class="muted" style="font-size:13px">直连 CDN · 1080P · 点击播放</div>
+      </div>
+      <div class="player-bar">
+        <span>▶</span>
+        <div class="track"><i></i></div>
+        <span>12:04 / 45:00</span>
+        <span>🔊</span><span>⚙</span><span>⛶</span>
+      </div>
+    </div>
+
+    <div class="linebar">
+      <span>线路：</span>
+      <span class="l active">ffm3u8（直连）</span>
+      <span class="l">ffm3u8（代理）</span>
+      <span class="l">llm3u8</span>
+    </div>
+    <div class="eps">
+      <span class="ep active">第12集</span>
+      <span class="ep">第13集</span>
+      <span class="ep">第14集</span>
+      <span class="ep">第15集</span>
+      <span class="ep">第16集</span>
+      <span class="ep">第17集</span>
+      <span class="ep">第18集</span>
+      <span class="ep">第19集</span>
+      <span class="ep">第20集</span>
+    </div>
+
+    <div class="detail" style="margin-top:28px">
+      <div class="detail-poster"></div>
+      <div class="detail-info">
+        <h1>庆余年 第二季</h1>
+        <div class="meta"><span>2024</span><span>中国大陆</span><span>国产剧</span><span>全 36 集</span></div>
+        <div class="desc">范闲假死归来，重返京都，在庆国的权力漩涡中周旋……（此区域展示采集源简介 / TMDB 元数据）</div>
+        <div class="btn-row">
+          <button class="btn primary">▶ 继续观看</button>
+          <button class="btn ghost">☆ 收藏</button>
+          <button class="btn ghost">⇄ 换源</button>
+        </div>
+        <div class="muted" style="font-size:13px">当前源：非凡资源 · 可切换 7 个源</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 收藏 -->
+<div class="page" id="page-favorites">
+  <div class="app">
+    <h2 class="sec" style="margin-top:10px"><span class="dot"></span>我的收藏</h2>
+    <div class="chips">
+      <span class="chip active">全部</span><span class="chip">电影</span><span class="chip">剧集</span>
+    </div>
+    <div class="grid" id="grid-fav"></div>
+  </div>
+</div>
+
+<!-- 登录 -->
+<div class="page" id="page-login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="brand">CiLiCiLi</div>
+      <p>多源聚合影视 · 自建使用</p>
+      <input type="password" placeholder="服务器访问密码" value="••••••">
+      <button class="btn primary" onclick="go('home')">登录</button>
+      <div class="hint">服务器地址在设置中配置 · 会话存于 httpOnly Cookie</div>
+    </div>
+  </div>
+</div>
+
+<div class="note">🎨 <b>产品原型</b><br>点击导航、卡片、播放器可跳转。仅演示布局与流程，无真实数据。</div>
+
+<script>
+  // 假海报数据
+  const movies = [["流浪地球2","8.3"],["满江红","7.0"],["消失的她","6.5"],["孤注一掷","6.9"],["封神第一部","7.8"],["长安三万里","8.2"]];
+  const tvs = [["漫长的季节","9.4"],["繁花","8.7"],["狂飙","8.5"],["三体","8.7"],["庆余年2","7.9"],["与凤行","7.2"]];
+  const search = [["庆余年 第二季","9 源"],["庆余年","8 源"],["庆余年之白首","3 源"],["庆余年 第一季","6 源"],["庆余年（预告）","2 源"],["庆余年 合集","4 源"]];
+  const favs = [["庆余年2","剧集"],["流浪地球2","电影"],["三体","剧集"],["漫长的季节","剧集"],["繁花","剧集"],["封神第一部","电影"]];
+
+  function mkCard([title, sub]){
+    return `<div class="card" onclick="go('detail')">
+      <div class="poster"><div class="ph"></div><span class="score">${sub.includes('源')||sub.includes('集')||sub.includes('电影')?sub:sub}</span></div>
+      <div class="t">${title}</div>
+    </div>`;
+  }
+  function mkScoreCard([title, score]){
+    return `<div class="card" onclick="go('detail')">
+      <div class="poster"><div class="ph"></div><span class="score">★ ${score}</span></div>
+      <div class="t">${title}</div>
+    </div>`;
+  }
+  function mkSearchCard([title, src]){
+    return `<div class="card" onclick="go('detail')">
+      <div class="poster"><div class="ph"></div><span class="badge">${src}</span></div>
+      <div class="t">${title}</div>
+    </div>`;
+  }
+  document.getElementById('grid-movie').innerHTML = movies.map(mkScoreCard).join('');
+  document.getElementById('grid-tv').innerHTML = tvs.map(mkScoreCard).join('');
+  document.getElementById('grid-search').innerHTML = search.map(mkSearchCard).join('');
+  document.getElementById('grid-fav').innerHTML = favs.map(([t,s])=>`
+    <div class="card" onclick="go('detail')">
+      <div class="poster"><div class="ph"></div><span class="badge">${s}</span></div>
+      <div class="t">${t}</div>
+    </div>`).join('');
+
+  function go(page){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-'+page).classList.add('active');
+    document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.nav===page));
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  document.querySelectorAll('.nav a').forEach(a=>{
+    a.addEventListener('click',e=>{e.preventDefault();go(a.dataset.nav);});
+  });
+</script>
+</body>
+</html>
