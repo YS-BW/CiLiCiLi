@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { api } from '../api/client';
+import { prefetchImage } from '../lib/prefetch';
 
 interface PosterCardProps {
   title: string;
@@ -18,6 +20,13 @@ export default function PosterCard({ title, year, kind, src, cover, badge, sub, 
   const imgSrc = src && src.startsWith('/')
     ? src
     : (cover && cover.startsWith('/') && !src ? cover : api.coverUrl({ title, year, kind, src: src || cover, big: false }));
+
+  // 小封面渲染时，后台预加载该片大封面（big=1），进详情秒显示。
+  useEffect(() => {
+    if (!title) return;
+    prefetchImage(api.coverUrl({ title, year, kind, src: src || cover, big: true }));
+  }, [title, year, kind, src, cover]);
+
   return (
     <div className={`tile${wide ? '' : ' poster-tile'}`} onClick={onClick}>
       <div className="poster">

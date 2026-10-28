@@ -134,6 +134,15 @@ img { display: block; }
   linear-gradient(0deg, #000 0%, rgba(0,0,0,.7) 20%, transparent 55%),
   linear-gradient(90deg, rgba(0,0,0,.95) 0%, rgba(0,0,0,.65) 32%, transparent 62%); }
 .detail-hero .bg-blur { position: absolute; inset: -8%; background-size: cover; background-position: center; filter: blur(40px) brightness(.5); transform: scale(1.15); }
+/* 详情页新图层：模糊底（小封面）+ 竖版海报居中 + 渐隐 */
+.detail-hero .dh-blur { position: absolute; inset: -10%; background-size: cover; background-position: center;
+  filter: blur(38px) brightness(.42) saturate(1.15); transform: scale(1.2); }
+.detail-hero .dh-poster { position: absolute; top: 0; right: 10%; height: 100%; aspect-ratio: 2/3;
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  filter: drop-shadow(0 20px 60px rgba(0,0,0,.7)); }
+.detail-hero .dh-fade { position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(90deg, #000 22%, rgba(0,0,0,.72) 45%, transparent 72%),
+              linear-gradient(0deg, #000 0%, rgba(0,0,0,.3) 22%, transparent 55%); }
 /* 无 TMDB 剧照时的干净深色渐变底（不用竖版海报模糊拉伸） */
 .detail-hero .bg-dark { position: absolute; inset: 0;
   background: radial-gradient(90% 120% at 25% 10%, #1c1c22 0%, #0b0b0d 55%, #050506 100%); }

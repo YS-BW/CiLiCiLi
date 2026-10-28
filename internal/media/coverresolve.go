@@ -85,11 +85,13 @@ func (m *Manager) FetchCover(ctx context.Context, req CoverRequest) (*CoverResul
 		}
 		imgURL := m.resolveTMDBImageURL(bg, req.Title, req.Year, req.Kind, req.Big)
 		if imgURL == "" {
+			m.log.Debug("cover: tmdb url empty", "title", req.Title, "year", req.Year)
 			tmdbCh <- coverCand{}
 			return
 		}
 		data, ct := m.downloadImageBytes(bg, imgURL)
 		if len(data) == 0 {
+			m.log.Debug("cover: tmdb download failed", "url", imgURL)
 			tmdbCh <- coverCand{}
 			return
 		}
@@ -211,6 +213,7 @@ func (m *Manager) resolveTMDBImageURL(ctx context.Context, title, year string, k
 		}
 		cands, err := p.Search(ctx, Request{Kind: kind, Title: title, Year: year})
 		if err != nil {
+			m.log.Debug("cover tmdb search err", "title", title, "year", year, "err", err)
 			continue
 		}
 		for _, c := range cands {
@@ -263,11 +266,17 @@ func (m *Manager) fetchImageOnce(ctx context.Context, rawURL string) ([]byte, st
 		SafeRedirects: true,
 		Headers:       http.Header{"Accept": []string{"image/*"}},
 	}
+	// TMDB 官方图域是可信来源；在其 DNS 被 TUN 解析为保留地址段时，跳过 IP 段校验
+	// （否则本地 TUN 环境会 SSRF 拦截，VPS 正常）。仅对硬编码可信 host 放行。
+	if u, err := url.Parse(rawURL); err == nil && isTMDBImageHost(u.Hostname()) {
+		opts.AllowPrivate = true
+	}
 	if u, err := url.Parse(rawURL); err == nil && isDoubanHost(u.Hostname()) {
 		opts.Headers.Set("Referer", "https://movie.douban.com/")
 	}
 	res, err := m.client.Do(ctx, rawURL, opts)
 	if err != nil {
+		m.log.Debug("cover: image do err", "url", rawURL, "allowPrivate", opts.AllowPrivate, "err", err)
 		return nil, "", err
 	}
 	defer res.Close()
@@ -276,6 +285,7 @@ func (m *Manager) fetchImageOnce(ctx context.Context, rawURL string) ([]byte, st
 	}
 	ct := res.Header.Get("Content-Type")
 	if !strings.HasPrefix(strings.ToLower(ct), "image/") {
+		m.log.Debug("cover: not image", "url", rawURL, "ct", ct, "status", res.StatusCode)
 		return nil, "", ErrCoverType
 	}
 	data, err := io.ReadAll(io.LimitReader(res.Body, maxCoverBytes+1))
@@ -286,6 +296,11 @@ func (m *Manager) fetchImageOnce(ctx context.Context, rawURL string) ([]byte, st
 		return nil, "", ErrCoverTooLarge
 	}
 	return data, ct, nil
+}
+
+func isTMDBImageHost(host string) bool {
+	h := strings.ToLower(host)
+	return h == "image.tmdb.org" || h == "tmdb.org" || strings.HasSuffix(h, ".tmdb.org")
 }
 
 func isDoubanHost(host string) bool {

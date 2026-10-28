@@ -17,8 +17,27 @@ export default function Detail() {
   const [playing, setPlaying] = useState(false);
   const [hint, setHint] = useState('');
   const [faved, setFaved] = useState(false);
+  const [heroBg, setHeroBg] = useState<{ url: string; wide: boolean } | null>(null);
   const playerRef = useRef<PlayerHandle | null>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 详情页大图：预加载 big 封面，按图片朝向决定展示方式（横图才铺满，竖图不拉伸）。
+  useEffect(() => {
+    if (!detail) return;
+    const vi = detail.videoInfo;
+    const kind: 'movie' | 'tv' = isTvType(detail) ? 'tv' : 'movie';
+    const bigUrl = api.coverUrl({ title: vi.title, year: vi.year, kind, src: vi.cover, big: true });
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      // 宽高比 >= 1.15 视为横版剧照（铺满）；否则是竖版海报（模糊底 + 居中，不拉伸）。
+      setHeroBg({ url: bigUrl, wide: img.naturalWidth >= img.naturalHeight * 1.15 });
+    };
+    img.onerror = () => { if (!cancelled) setHeroBg({ url: '', wide: false }); };
+    img.src = bigUrl;
+    return () => { cancelled = true; };
+  }, [detail]);
 
   // 拉详情
   useEffect(() => {
@@ -118,16 +137,21 @@ export default function Detail() {
   if (!detail) return null;
 
   const vi = detail.videoInfo;
-  // 详情页大图走统一封面接口 big=1（TMDB 横版剧照），src 用竖版封面兜底；
-  // 下方恒有深色底，图片未加载/失败时不会空白。
   const kind: 'movie' | 'tv' = isTvType(detail) ? 'tv' : 'movie';
-  const heroBg = api.coverUrl({ title: vi.title, year: vi.year, kind, src: vi.cover, big: true });
+  // 模糊底层用小封面（快、已缓存）；清晰前景用 big 图（仅横图）。
+  const blurSrc = api.coverUrl({ title: vi.title, year: vi.year, kind, src: vi.cover, big: false });
 
   return (
     <div>
       <section className="detail-hero wide">
-        <div className="bg-dark" />
-        <div className="bg-wide" style={{ backgroundImage: `url(${heroBg})` }} />
+        {/* 底层：小封面模糊放大，保证任何情况下都有底色、不空白、不拉伸 */}
+        <div className="dh-blur" style={blurSrc ? { backgroundImage: `url(${blurSrc})` } : undefined} />
+        {heroBg && heroBg.url ? (
+          heroBg.wide
+            ? <div className="bg-wide" style={{ backgroundImage: `url(${heroBg.url})` }} />
+            : <div className="dh-poster" style={{ backgroundImage: `url(${heroBg.url})` }} />
+        ) : null}
+        <div className="dh-fade" />
         <div className="inner">
           <h1>{vi.title || vodId}</h1>
           <div className="meta">

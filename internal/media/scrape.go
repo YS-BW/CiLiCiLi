@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -284,9 +285,10 @@ func ScoreCandidate(req Request, c Candidate) (float64, []string) {
 }
 
 func absYearDiff(a, b string) int {
-	ai := atoiSafe(a)
-	bi := atoiSafe(b)
-	if ai == 0 || bi == 0 {
+	// 注意：不能复用 atoiSafe（它对 >999 返回 0，是季数解析器，会把 4 位年份当非法）。
+	ai, e1 := strconv.Atoi(strings.TrimSpace(a))
+	bi, e2 := strconv.Atoi(strings.TrimSpace(b))
+	if e1 != nil || e2 != nil || ai == 0 || bi == 0 {
 		return 999
 	}
 	if ai > bi {
