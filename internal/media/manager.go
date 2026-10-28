@@ -244,9 +244,21 @@ func (m *Manager) SearchCards(items []model.SearchResultItem, now time.Time) ([]
 		if entity == nil {
 			entity = &Media{ID: id, Kind: KindFromType(g.refs[0].TypeName), Title: g.refs[0].Name}
 		}
-		cover := entity.firstCoverURL()
+		// 封面顺序：本地已缓存 → 候选里的 TMDB 封面 → 源站 pic。
+		cover := ""
 		if path, err := m.store.CoverPath(id); err == nil && path != "" {
 			cover = m.coverURL(id, entity.Cover.Hash)
+		}
+		if cover == "" {
+			for _, c := range entity.Candidates {
+				if strings.TrimSpace(c.CoverURL) != "" {
+					cover = c.CoverURL
+					break
+				}
+			}
+		}
+		if cover == "" {
+			cover = entity.firstCoverURL()
 		}
 		// 横版图回退到最高分候选（与 Get 保持一致），保证卡片也能拿到 backdrop。
 		backdrop := entity.Backdrop

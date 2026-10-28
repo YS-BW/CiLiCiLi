@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -42,25 +43,47 @@ func (m *Manager) Stop() {
 	m.started = false
 }
 
+// scrapeConcurrency 是刮削 worker 的并发度：搜索一次可能产生几十个媒体，
+// 串行处理会让卡片长时间停留在源站图，故并发拉 TMDB/源站封面与元数据。
+const scrapeConcurrency = 6
+
 func (m *Manager) loop(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	for {
+	sem := make(chan struct{}, scrapeConcurrency)
+	var wg sync.WaitGroup
+	// drain：持续 claim 直到队列空；每个 job 在独立 goroutine 中并发执行（受 sem 限流）。
+	drain := func() {
 		for {
 			id, attempts, ok, err := m.store.ClaimJob(time.Now())
 			if err != nil {
 				m.log.Warn("claim scrape job failed", "err", err)
-				break
+				return
 			}
 			if !ok {
-				break
+				return
 			}
-			m.runJob(ctx, id, attempts)
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			wg.Add(1)
+			go func(mediaID string, att int) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				m.runJob(ctx, mediaID, att)
+			}(id, attempts)
 		}
+	}
+	for {
+		drain()
 		select {
 		case <-ctx.Done():
+			wg.Wait()
 			return
 		case <-m.stop:
+			wg.Wait()
 			return
 		case <-m.wake:
 		case <-ticker.C:
