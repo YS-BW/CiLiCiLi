@@ -131,7 +131,7 @@ func (a *API) enrichDoubanMedia(ctx context.Context, typ, tag string, pageStart 
 			defer func() { <-sem }()
 			it := items[i]
 			card := media.SearchMedia{
-				ID: "douban:" + it.ID, Title: it.Title, Cover: it.Cover,
+				ID: "douban:" + it.ID, Title: it.Title, Cover: it.Cover, Rating: it.Rating,
 				Kind: media.KindMovie, MatchStatus: media.MatchPending,
 			}
 			if it.IsTV {
@@ -143,6 +143,7 @@ func (a *API) enrichDoubanMedia(ctx context.Context, typ, tag string, pageStart 
 					best := pickCard(cards, it.Title)
 					if best != nil {
 						best.Title = it.Title
+						best.Rating = it.Rating
 						if best.Cover == "" {
 							best.Cover = it.Cover
 						}

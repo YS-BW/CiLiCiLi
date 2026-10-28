@@ -1,4 +1,5 @@
 import type {
+  SourcesAdminResponse, SourceAdminItem,
   AuthStatus, AuthResponse, SearchResponse, StreamEvent, VideoDetail,
   RecommendItem, WatchProgress, FavoriteItem, SearchMedia,
 } from './types';
@@ -154,6 +155,17 @@ export const api = {
     }
     return t;
   },
+
+  // 源管理
+  sourcesAdmin: () => jsonFetch<SourcesAdminResponse>('/api/sources'),
+  createSource: (name: string, url: string) =>
+    jsonFetch<{ source: SourceAdminItem }>('/api/sources', { method: 'POST', body: JSON.stringify({ name, url }) }),
+  updateSource: (key: string, patch: Partial<{ name: string; url: string; enabled: boolean }>) =>
+    jsonFetch<{ source: SourceAdminItem }>(`/api/sources/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(patch) }),
+  deleteSource: (key: string) =>
+    jsonFetch<{ success: boolean }>(`/api/sources/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  resetSource: (key: string) =>
+    jsonFetch<{ success: boolean }>('/api/sources/reset', { method: 'POST', body: JSON.stringify({ key }) }),
 
   // 统一封面接口 URL：所有封面（搜索/首页/详情/收藏）都走 /api/cover。
   //   title/year/kind → 后端查 TMDB；src 是已知原始图（外部 http），并发兜底；

@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Search from './pages/Search';
 import Detail from './pages/Detail';
 import Favorites from './pages/Favorites';
+import Sources from './pages/Sources';
 
 export default function App() {
   const { ready, verified } = useAuth();
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/search" element={<Search />} />
         <Route path="/play/:sourceKey/:vodId" element={<Detail />} />
         <Route path="/favorites" element={<Favorites />} />
+        <Route path="/sources" element={<Sources />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -25,22 +25,30 @@ export default function Search() {
     abortRef.current = ac;
     setLoading(true); setDone(false); setErr(''); setMedia([]); setSourceInfo('');
 
-    // 首源即时聚合的累加器（done 事件到达后以后端 media 为准）
+    // 累加各源结果；**第一个源一返回就立即渲染**（不等所有源），done 时用后端最终结果定稿。
     let accItems: any[] = [];
     let settled = 0, total = 0;
+    let shownFirst = false;
 
     try {
       await api.searchStream(keyword, (e: StreamEvent) => {
         if (ac.signal.aborted) return;
         if (e.type === 'source') {
           settled++;
-          if (e.ok && e.list.length) accItems = accItems.concat(e.list);
+          if (e.ok && e.list.length) {
+            accItems = accItems.concat(e.list);
+            if (!shownFirst) {
+              // 首个返回结果的源 → 立即出现结果与封面，结束"加载中"
+              setMedia(api.getAggregate(accItems));
+              shownFirst = true;
+              setLoading(false);
+            }
+          }
           setSourceInfo(`已收到 ${settled}${total ? '/' + total : ''} 个源`);
         } else if (e.type === 'partial_done') {
-          // 软截止只更新进度提示，不渲染中间结果（本地聚合与后端去重不一致，避免列表跳动）
           setSourceInfo(`已收到 ${settled}${total ? '/' + total : ''} 个源`);
         } else if (e.type === 'done') {
-          // 只渲染后端最终聚合结果（去重/排序后），列表一次成型、稳定
+          // 后端最终聚合结果（去重/排序）定稿
           const finalList = e.media && e.media.length ? e.media : api.getAggregate(e.list);
           setMedia(finalList);
           setDone(true); setLoading(false);

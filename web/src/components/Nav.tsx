@@ -27,6 +27,7 @@ export default function Nav() {
         <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>首页</NavLink>
         <NavLink to="/search" className={({ isActive }) => (isActive ? 'active' : '')}>搜索</NavLink>
         <NavLink to="/favorites" className={({ isActive }) => (isActive ? 'active' : '')}>我的收藏</NavLink>
+        <NavLink to="/sources" className={({ isActive }) => (isActive ? 'active' : '')}>源管理</NavLink>
       </div>
       <div className="spacer" />
       <form onSubmit={submit} style={{ display: 'flex', alignItems: 'center' }}>

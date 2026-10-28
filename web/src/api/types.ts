@@ -29,6 +29,7 @@ export interface SourceRef {
 export interface SearchMedia {
   id: string; kind: string; title: string; year?: string;
   cover?: string; backdrop?: string; typeName?: string; remarks?: string;
+  rating?: string;
   sourceCount: number; matchStatus: string; sources: SourceRef[];
 }
 
@@ -64,3 +65,12 @@ export interface FavoriteItem {
   id: string; sourceKey: string; vodId: string; title: string; cover?: string;
   createdAt: number; updatedAt: number;
 }
+
+export interface SourceAdminItem {
+  key: string; name: string; url: string; enabled: boolean;
+  sortOrder?: number; isAdult?: boolean; createdAt?: number; updatedAt?: number;
+}
+export interface SourceHealth {
+  key: string; ewmaMs?: number; failStreak?: number; level?: number; openUntil?: number; disabled?: boolean;
+}
+export interface SourcesAdminResponse { sources: SourceAdminItem[]; health: SourceHealth[] }

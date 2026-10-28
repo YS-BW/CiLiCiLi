@@ -106,8 +106,8 @@ export default function Home() {
             <div className="rail">
               {movies.map(m => (
                 <PosterCard key={m.id} title={m.title} year={m.year} kind={kindOf(m)}
-                  src={m.sources?.[0]?.pic || m.cover}
-                  sub={m.sourceCount > 0 ? `${m.sourceCount} 源` : undefined}
+                  src={m.cover || m.sources?.[0]?.pic}
+                  sub={cardSub(m)}
                   onClick={() => openCard(m)} />
               ))}
             </div>
@@ -120,8 +120,8 @@ export default function Home() {
             <div className="rail">
               {tvs.map(m => (
                 <PosterCard key={m.id} title={m.title} year={m.year} kind={kindOf(m)}
-                  src={m.sources?.[0]?.pic || m.cover}
-                  sub={m.sourceCount > 0 ? `${m.sourceCount} 源` : undefined}
+                  src={m.cover || m.sources?.[0]?.pic}
+                  sub={cardSub(m)}
                   onClick={() => openCard(m)} />
               ))}
             </div>
@@ -136,6 +136,11 @@ export default function Home() {
   );
 }
 
+function cardSub(m: SearchMedia): string | undefined {
+  const r = m.rating ? `★ ${m.rating}` : '';
+  const sc = m.sourceCount > 0 ? `${m.sourceCount} 源` : '';
+  return [r, sc].filter(Boolean).join(' · ') || undefined;
+}
 function kindOf(m?: SearchMedia | null): 'movie' | 'tv' {
   return m && (m.kind === 'tv' || m.kind === 'anime') ? 'tv' : 'movie';
 }

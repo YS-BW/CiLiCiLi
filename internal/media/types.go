@@ -136,9 +136,11 @@ type SearchMedia struct {
 	Year  string `json:"year,omitempty"`
 	Cover string `json:"cover,omitempty"`
 	// Backdrop 横版剧照 URL（来自第三方元数据），Web 首页主推/详情背景用；可能为空。
-	Backdrop    string      `json:"backdrop,omitempty"`
-	TypeName    string      `json:"typeName,omitempty"`
-	Remarks     string      `json:"remarks,omitempty"`
+	Backdrop string `json:"backdrop,omitempty"`
+	TypeName string `json:"typeName,omitempty"`
+	Remarks  string `json:"remarks,omitempty"`
+	// Rating 展示用评分串（首页推荐来自豆瓣榜单评分；搜索卡片通常为空）。
+	Rating      string      `json:"rating,omitempty"`
 	SourceCount int         `json:"sourceCount"`
 	MatchStatus MatchStatus `json:"matchStatus"`
 	// Sources 是该聚合下可用的源引用，前端可据此直接进详情/换源。
