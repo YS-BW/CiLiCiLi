@@ -98,6 +98,7 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/media/{id}/match", guard(d.API.MediaMatch))
 	mux.HandleFunc("POST /api/media/{id}/cover", guard(d.API.MediaSetCover))
 	mux.HandleFunc("GET /api/media/{id}/cover", d.API.MediaCover)
+	mux.HandleFunc("GET /api/cover", guard(d.API.Cover))
 	mux.HandleFunc("POST /api/media/{id}/refresh-metadata", guard(d.API.MediaRefresh))
 
 	// 代理自己处理鉴权（匿名图片域），这里不再套 guard。

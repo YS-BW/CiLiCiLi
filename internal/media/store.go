@@ -129,6 +129,11 @@ func NewStore(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("迁移媒体库 meta_backdrop: %w", err)
 	}
+	// 统一封面存储表（大/小封面按 key+variant 落库）。
+	if _, err := db.Exec(coverStoreSchema); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("初始化封面存储表: %w", err)
+	}
 	s := &Store{db: db, now: time.Now}
 	if err := s.recoverInterrupted(); err != nil {
 		_ = db.Close()

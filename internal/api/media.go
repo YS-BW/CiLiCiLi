@@ -267,3 +267,47 @@ func (a *API) MediaRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusAccepted, map[string]any{"queued": true, "media": m})
 }
+
+// Cover 是统一的封面接口：/api/cover?title=&year=&kind=&src=&big=0|1
+//   - title/year/kind 用于查 TMDB（大封面取横版剧照，小封面取竖版海报）
+//   - src 是已知原始图（采集源 pic / 豆瓣图），与 TMDB 并发，谁先成功先返回
+//   - 缓存 TMDB 优先；数据库按 big/small 分别存储
+//
+// 搜索、首页、详情背景等所有封面都走这一个接口。
+func (a *API) Cover(w http.ResponseWriter, r *http.Request) {
+	if a.deps.Media == nil {
+		http.NotFound(w, r)
+		return
+	}
+	q := r.URL.Query()
+	kind := media.KindMovie
+	if q.Get("kind") == "tv" {
+		kind = media.KindTV
+	}
+	big := q.Get("big") == "1" || q.Get("big") == "true"
+	res, err := a.deps.Media.FetchCover(r.Context(), media.CoverRequest{
+		Title:  strings.TrimSpace(q.Get("title")),
+		Year:   strings.TrimSpace(q.Get("year")),
+		Kind:   kind,
+		SrcURL: strings.TrimSpace(q.Get("src")),
+		Big:    big,
+	})
+	if err != nil || res == nil || len(res.Data) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	etag := `"` + res.Hash + `"`
+	w.Header().Set("ETag", etag)
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", res.ContentType)
+	w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	_, _ = w.Write(res.Data)
+}
