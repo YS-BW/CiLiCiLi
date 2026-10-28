@@ -84,23 +84,21 @@ export default function Sources() {
           const h = health[s.key];
           const open = h?.openUntil ? '熔断中' : '';
           return (
-            <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 14, background: '#141414', border: '1px solid #262626', borderRadius: 10, padding: '12px 16px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600 }}>
+            <div key={s.key} className="src-row">
+              <div className="src-main">
+                <div className="src-name">
                   {s.name}
-                  <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{s.key}</span>
+                  <span className="k">{s.key}</span>
                   {open ? <span style={{ color: '#e5a50a', fontSize: 12, marginLeft: 8 }}>{open}</span> : null}
                   {!s.enabled ? <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>已禁用</span> : null}
                 </div>
-                <div className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.url}</div>
+                <div className="src-url">{s.url}</div>
               </div>
-              <span className="muted" style={{ fontSize: 12, minWidth: 70, textAlign: 'right' }}>
-                {h?.ewmaMs ? `${Math.round(h.ewmaMs)}ms` : ''}
-              </span>
-              <button className="btn ghost" style={{ padding: '6px 14px', fontSize: 13 }}
-                onClick={() => toggle(s)}>{s.enabled ? '禁用' : '启用'}</button>
-              <button style={{ color: '#ff6b6b', fontSize: 13, padding: '6px 10px' }}
-                onClick={() => del(s)} disabled={busy}>删除</button>
+              <span className="src-lat">{h?.ewmaMs ? `${Math.round(h.ewmaMs)}ms` : ''}</span>
+              <div className="src-actions">
+                <button className="btn ghost" onClick={() => toggle(s)}>{s.enabled ? '禁用' : '启用'}</button>
+                <button className="del" onClick={() => del(s)} disabled={busy}>删除</button>
+              </div>
             </div>
           );
         })}
