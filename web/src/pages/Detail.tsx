@@ -40,7 +40,7 @@ export default function Detail() {
         }
         setEpIdx(ep);
         // 详情页背景大图：按标题查 TMDB 横版剧照（豆瓣/采集站只有竖版封面）
-        api.backdrop(viTitle(d), isTvType(d) ? 'tv' : 'movie').then(bd => { if (bd) setBackdrop(bd); }).catch(() => {});
+        api.backdrop(viTitle(d), isTvType(d) ? 'tv' : 'movie', d.videoInfo?.year || '').then(bd => { if (bd) setBackdrop(bd); }).catch(() => {});
       } catch (e: any) {
         setErr(e?.message || '详情加载失败');
       } finally {
@@ -121,21 +121,16 @@ export default function Detail() {
   if (!detail) return null;
 
   const vi = detail.videoInfo;
-  // 优先 TMDB 横版剧照；没有则回退竖版封面（模糊铺底 + 底部渐变）
-  const bg = backdrop || vi.cover;
-  const isWideBg = !!backdrop;
+  // 详情页大图只用 TMDB 横版剧照；拿不到就用干净深色渐变兜底，
+  // 不再用竖版海报模糊拉伸（那种会糊、观感差）。
+  const heroBg = backdrop ? api.proxyUrl(backdrop) : '';
 
   return (
     <div>
-      <section className={`detail-hero${isWideBg ? ' wide' : ''}`}>
-        {isWideBg ? (
-          <div className="bg-wide" style={{ backgroundImage: `url(${api.proxyUrl(bg)})` }} />
-        ) : (
-          <>
-            {bg ? <div className="bg-blur" style={{ backgroundImage: `url(${api.proxyUrl(bg)})` }} /> : null}
-            <div className="bg" style={{ backgroundImage: bg ? `url(${api.proxyUrl(bg)})` : 'radial-gradient(120% 100% at 70% 20%,#2f2418,#050505)' }} />
-          </>
-        )}
+      <section className={`detail-hero${backdrop ? ' wide' : ''}`}>
+        {heroBg
+          ? <div className="bg-wide" style={{ backgroundImage: `url(${heroBg})` }} />
+          : <div className="bg-dark" />}
         <div className="inner">
           <h1>{vi.title || vodId}</h1>
           <div className="meta">
@@ -220,9 +215,16 @@ export default function Detail() {
 function viTitle(d: VideoDetail): string {
   return (d.videoInfo?.title || '').trim();
 }
-// 粗判类型：剧集/动漫 → tv；其余按 movie。
+// 判断是否剧集：注意「喜剧/悲剧/闹剧」都含「剧」字，不能只靠单字「剧」误判成剧集。
+// 规则：类型名以「片」结尾或含「电影」→ 电影；含剧集/连续剧/电视剧/综艺/动漫/番剧/动画/集数 → tv。
 function isTvType(d: VideoDetail): boolean {
-  const t = `${d.videoInfo?.typeName || ''} ${d.videoInfo?.remarks || ''}`;
-  return /剧|连续|集|综艺|动漫|番剧|动画/.test(t);
+  const type = (d.videoInfo?.typeName || '').trim();
+  const remarks = (d.videoInfo?.remarks || '');
+  // 电影优先：类型名以「片」结尾（喜剧片/动作片/剧情片…）或含「电影」
+  if (/片$/.test(type) || type.includes('电影')) return false;
+  const t = `${type} ${remarks}`;
+  if (/剧集|连续剧|电视剧|美剧|日剧|韩剧|港剧|台剧|短剧|综艺|动漫|番剧|动画|集/.test(t)) return true;
+  if (/剧$/.test(type)) return true; // 国产剧/欧美剧 等以剧结尾
+  return false;
 }
 

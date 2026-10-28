@@ -27,7 +27,8 @@ func (a *API) Backdrop(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("type") == "tv" {
 		kind = media.KindTV
 	}
-	url, err := a.deps.Media.LookupBackdrop(r.Context(), title, kind)
+	year := strings.TrimSpace(r.URL.Query().Get("year"))
+	url, err := a.deps.Media.LookupBackdrop(r.Context(), title, year, kind)
 	if err != nil {
 		a.deps.Log.Debug("backdrop lookup failed", "err", err)
 	}

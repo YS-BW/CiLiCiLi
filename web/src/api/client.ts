@@ -108,8 +108,8 @@ export const api = {
     jsonFetch<{ items: RecommendItem[] }>(`/api/hot-list?id=${encodeURIComponent(id)}`).then(r => r.items || []),
 
   // 按标题查 TMDB 横版剧照（首页主推大图用）
-  backdrop: (title: string, type: 'movie' | 'tv' = 'movie') =>
-    jsonFetch<{ backdrop: string }>(`/api/backdrop?title=${encodeURIComponent(title)}&type=${type}`)
+  backdrop: (title: string, type: 'movie' | 'tv' = 'movie', year = '') =>
+    jsonFetch<{ backdrop: string }>(`/api/backdrop?title=${encodeURIComponent(title)}&type=${type}${year ? `&year=${encodeURIComponent(year)}` : ''}`)
       .then(r => r.backdrop || '').catch(() => ''),
 
   history: (unfinished = false, limit = 50) =>

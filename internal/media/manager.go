@@ -97,7 +97,7 @@ func (m *Manager) Store() *Store { return m.store }
 // LookupBackdrop 按标题查第三方横版图（16:9），返回最高分带 backdrop 的候选 URL。
 // 供首页主推大图使用：豆瓣推荐只有竖版小海报，横版剧照只能从 TMDB 拿。
 // 找不到 / 未启用 provider 时返回空串（调用方回退竖版海报）。
-func (m *Manager) LookupBackdrop(ctx context.Context, title string, kind Kind) (string, error) {
+func (m *Manager) LookupBackdrop(ctx context.Context, title, year string, kind Kind) (string, error) {
 	if m == nil {
 		return "", nil
 	}
@@ -108,21 +108,47 @@ func (m *Manager) LookupBackdrop(ctx context.Context, title string, kind Kind) (
 	if kind != KindTV && kind != KindMovie {
 		kind = KindMovie
 	}
+	wantBase, _ := NormalizeTitle(title)
+	year = strings.TrimSpace(year)
 	for _, p := range m.providers {
 		if p == nil || !p.Enabled() {
 			continue
 		}
-		cands, err := p.Search(ctx, Request{Kind: kind, Title: title})
+		cands, err := p.Search(ctx, Request{Kind: kind, Title: title, Year: year})
 		if err != nil {
 			continue
 		}
 		for _, c := range cands {
-			if strings.TrimSpace(c.BackdropURL) != "" {
-				return c.BackdropURL, nil
+			if strings.TrimSpace(c.BackdropURL) == "" {
+				continue
 			}
+			// 标题匹配校验：避免 TMDB 搜到同名/近似的不相关影片。
+			gotBase, _ := NormalizeTitle(c.Title)
+			if !titlesMatch(wantBase, gotBase) {
+				continue
+			}
+			// 年份校验：两边都有年份时相差不超过 1 年才接受。
+			if year != "" && c.Year != "" && absYearDiff(year, c.Year) > 1 {
+				continue
+			}
+			return c.BackdropURL, nil
 		}
 	}
 	return "", nil
+}
+
+// titlesMatch 归一化标题的宽松匹配：完全相同，或一方包含另一方（长度≥2）。
+func titlesMatch(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	if len([]rune(a)) < 2 || len([]rune(b)) < 2 {
+		return false
+	}
+	return strings.Contains(a, b) || strings.Contains(b, a)
 }
 
 // UpsertItems 把搜索结果写入媒体库，返回 item 对应的 mediaID（可能为空）。
