@@ -180,7 +180,7 @@ export default function Detail() {
         <aside className="detail-aside">
           <div className="sec-title">详情</div>
           {vi.director ? <div className="row"><span className="k">导演</span><span className="v">{vi.director}</span></div> : null}
-          {vi.actor ? <div className="row"><span className="k">主演</span><span className="v">{vi.actor}</span></div> : null}
+          {vi.actor ? <div className="row"><span className="k">主演</span><span className="v clamp">{vi.actor}</span></div> : null}
           {vi.typeName ? <div className="row"><span className="k">类型</span><span className="v">{vi.typeName}</span></div> : null}
           {vi.area ? <div className="row"><span className="k">地区</span><span className="v">{vi.area}</span></div> : null}
           {vi.year ? <div className="row"><span className="k">年份</span><span className="v">{vi.year}</span></div> : null}

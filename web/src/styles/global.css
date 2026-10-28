@@ -166,6 +166,7 @@ img { display: block; }
 .detail-aside .row { margin-bottom: 14px; }
 .detail-aside .k { color: #777; margin-right: 8px; }
 .detail-aside .v { color: #e5e5e5; }
+.detail-aside .v.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ---------- player modal ---------- */
 .player-modal { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 90; display: flex; align-items: center; justify-content: center; }
