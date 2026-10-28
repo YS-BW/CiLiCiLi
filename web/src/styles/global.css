@@ -140,6 +140,8 @@ img { display: block; }
 .detail-hero .dh-poster { position: absolute; top: 0; right: 10%; height: 100%; aspect-ratio: 2/3;
   background-size: contain; background-position: center; background-repeat: no-repeat;
   filter: drop-shadow(0 20px 60px rgba(0,0,0,.7)); }
+@keyframes dhFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.detail-hero .bg-wide.dh-fadein { animation: dhFadeIn .6s ease; }
 .detail-hero .dh-fade { position: absolute; inset: 0; z-index: 1;
   background: linear-gradient(90deg, #000 22%, rgba(0,0,0,.72) 45%, transparent 72%),
               linear-gradient(0deg, #000 0%, rgba(0,0,0,.3) 22%, transparent 55%); }

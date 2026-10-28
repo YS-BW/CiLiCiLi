@@ -69,10 +69,11 @@ func (m *Manager) FetchCover(ctx context.Context, req CoverRequest) (*CoverResul
 		}
 	}
 
-	// 2) 并发拉取：TMDB 与源各起一个 goroutine，各自必定回传一次。
+	// 2) 并发拉取：small 走 TMDB 与源并发；big 只用 TMDB（大封面只来自 TMDB，
+	//    拿不到就 404，由前端用原站封面模糊打底，不返回竖版当大图）。
 	tmdbCh := make(chan coverCand, 1)
 	srcCh := make(chan coverCand, 1)
-	hasSrc := strings.TrimSpace(req.SrcURL) != ""
+	hasSrc := !req.Big && strings.TrimSpace(req.SrcURL) != ""
 
 	// TMDB 用独立后台 ctx，避免请求结束后被取消（用于后台覆盖缓存）。
 	go func() {

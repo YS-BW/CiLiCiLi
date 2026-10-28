@@ -138,18 +138,17 @@ export default function Detail() {
 
   const vi = detail.videoInfo;
   const kind: 'movie' | 'tv' = isTvType(detail) ? 'tv' : 'movie';
-  // 模糊底层用小封面（快、已缓存）；清晰前景用 big 图（仅横图）。
-  const blurSrc = api.coverUrl({ title: vi.title, year: vi.year, kind, src: vi.cover, big: false });
+  // 模糊底层用原站封面（vi.cover）；清晰前景只用 TMDB 横版大图（big=1）。
+  const blurSrc = vi.cover ? api.proxyUrl(vi.cover) : api.coverUrl({ title: vi.title, year: vi.year, kind, big: false });
 
   return (
     <div>
       <section className="detail-hero wide">
-        {/* 底层：小封面模糊放大，保证任何情况下都有底色、不空白、不拉伸 */}
+        {/* 底层：原站封面模糊放大打底，任何情况都有底色、不空白、不拉伸 */}
         <div className="dh-blur" style={blurSrc ? { backgroundImage: `url(${blurSrc})` } : undefined} />
-        {heroBg && heroBg.url ? (
-          heroBg.wide
-            ? <div className="bg-wide" style={{ backgroundImage: `url(${heroBg.url})` }} />
-            : <div className="dh-poster" style={{ backgroundImage: `url(${heroBg.url})` }} />
+        {/* 清晰层：仅当拿到 TMDB 横版剧照时淡入覆盖；没有就保持模糊底（不显示竖版大图） */}
+        {heroBg && heroBg.url && heroBg.wide ? (
+          <div className="bg-wide dh-fadein" style={{ backgroundImage: `url(${heroBg.url})` }} />
         ) : null}
         <div className="dh-fade" />
         <div className="inner">
