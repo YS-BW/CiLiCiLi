@@ -61,6 +61,8 @@ type Metadata struct {
 	Year     string `json:"year,omitempty"`
 	Overview string `json:"overview,omitempty"`
 	Cover    string `json:"cover,omitempty"`
+	// Backdrop 横版剧照 URL（来自第三方元数据），Web 端主推/详情背景用；可能为空。
+	Backdrop string `json:"backdrop,omitempty"`
 	Director string `json:"director,omitempty"`
 	Actors   string `json:"actors,omitempty"`
 	Area     string `json:"area,omitempty"`
@@ -73,16 +75,19 @@ type Metadata struct {
 
 // Candidate 是一个第三方元数据候选（未确认）。
 type Candidate struct {
-	ID         string  `json:"id"`
-	Provider   string  `json:"provider"` // bangumi
-	ExternalID string  `json:"externalId"`
-	Title      string  `json:"title"`
-	Original   string  `json:"originalTitle,omitempty"`
-	Year       string  `json:"year,omitempty"`
-	Kind       Kind    `json:"kind"`
-	Overview   string  `json:"overview,omitempty"`
-	CoverURL   string  `json:"coverUrl,omitempty"`
-	Score      float64 `json:"score"`
+	ID         string `json:"id"`
+	Provider   string `json:"provider"` // bangumi
+	ExternalID string `json:"externalId"`
+	Title      string `json:"title"`
+	Original   string `json:"originalTitle,omitempty"`
+	Year       string `json:"year,omitempty"`
+	Kind       Kind   `json:"kind"`
+	Overview   string `json:"overview,omitempty"`
+	CoverURL   string `json:"coverUrl,omitempty"`
+	// BackdropURL 是第三方（TMDB）返回的横版剧照（16:9），用于 Web 主推/详情背景大图；
+	// 为空表示该候选没有横版图，前端回退竖版封面或占位。
+	BackdropURL string  `json:"backdropUrl,omitempty"`
+	Score       float64 `json:"score"`
 	// Reasons 记录打分依据，便于人工判断（标题/年份/类型命中情况）。
 	Reasons []string `json:"reasons,omitempty"`
 	// Selected 表示当前绑定到该媒体的匹配。
@@ -104,14 +109,16 @@ type CoverInfo struct {
 
 // Media 是对外返回的聚合实体。
 type Media struct {
-	ID             string         `json:"id"`
-	Kind           Kind           `json:"kind"`
-	Title          string         `json:"title"`
-	Year           string         `json:"year,omitempty"`
-	Metadata       Metadata       `json:"metadata"`
-	Sources        []SourceRef    `json:"sources"`
-	SourceCount    int            `json:"sourceCount"`
-	Cover          CoverInfo      `json:"cover"`
+	ID          string      `json:"id"`
+	Kind        Kind        `json:"kind"`
+	Title       string      `json:"title"`
+	Year        string      `json:"year,omitempty"`
+	Metadata    Metadata    `json:"metadata"`
+	Sources     []SourceRef `json:"sources"`
+	SourceCount int         `json:"sourceCount"`
+	Cover       CoverInfo   `json:"cover"`
+	// Backdrop 横版剧照 URL（来自第三方元数据），Web 端详情/主推背景用；可能为空。
+	Backdrop       string         `json:"backdrop,omitempty"`
 	Candidates     []Candidate    `json:"candidates,omitempty"`
 	MatchStatus    MatchStatus    `json:"matchStatus"`
 	MetadataStatus MetadataStatus `json:"metadataStatus"`
@@ -123,11 +130,13 @@ type Media struct {
 
 // SearchMedia 是搜索结果里的聚合卡片。
 type SearchMedia struct {
-	ID          string      `json:"id"`
-	Kind        Kind        `json:"kind"`
-	Title       string      `json:"title"`
-	Year        string      `json:"year,omitempty"`
-	Cover       string      `json:"cover,omitempty"`
+	ID    string `json:"id"`
+	Kind  Kind   `json:"kind"`
+	Title string `json:"title"`
+	Year  string `json:"year,omitempty"`
+	Cover string `json:"cover,omitempty"`
+	// Backdrop 横版剧照 URL（来自第三方元数据），Web 首页主推/详情背景用；可能为空。
+	Backdrop    string      `json:"backdrop,omitempty"`
 	TypeName    string      `json:"typeName,omitempty"`
 	Remarks     string      `json:"remarks,omitempty"`
 	SourceCount int         `json:"sourceCount"`

@@ -548,6 +548,11 @@ Base URL：`/api`。除特别说明外：
 
 → 单个 `Media`，找不到返回 404。
 
+> **横版图（backdrop）**：TMDB 有 `backdrop_path` 时，`Media`、`Media.metadata`、`SearchMedia` 都会带
+> `backdrop` 字段（`https://image.tmdb.org/t/p/w1280/...`，横版 16:9），供 Web 首页主推大图 / 详情页背景使用。
+> 字段缺失或为空表示该片暂无横版图，前端应回退到竖版 `cover` 或本地占位。该字段只增不改，旧客户端忽略即可。
+> 注意：backdrop 目前是**直连 TMDB 图片 CDN 的 URL**（未像封面那样落盘本地缓存），拿不到时前端回退 `cover`。
+
 `GET /api/media/{id}` 响应（节选）：
 
 ```json
@@ -558,11 +563,13 @@ Base URL：`/api`。除特别说明外：
   "year": "2024",
   "metadata": {
     "title": "庆余年第二季", "year": "2024", "overview": "", "cover": "https://...",
+    "backdrop": "https://image.tmdb.org/t/p/w1280/xxx.jpg",
     "director": "", "actors": "", "area": "", "genres": "",
     "source": "source", "confidence": 0
   },
   "sources": [{"sourceKey":"360zy","sourceName":"360采集","vodId":"57767","name":"庆余年第二季","pic":"https://..."}],
   "sourceCount": 12,
+  "backdrop": "https://image.tmdb.org/t/p/w1280/xxx.jpg",
   "cover": {
     "url": "/api/media/media_cfb94fbb2e1b3b08/cover",
     "localPath": "/var/lib/cilicili/covers/media_cfb94fbb2e1b3b08.jpg",

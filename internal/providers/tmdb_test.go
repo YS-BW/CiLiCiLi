@@ -61,7 +61,7 @@ func TestTMDBDisabledWithoutCredentials(t *testing.T) {
 
 func TestTMDBMovieSearchWithAPIKey(t *testing.T) {
 	doer := &fakeDoer{body: `{"results":[
-		{"id":1,"title":"庆余年","original_title":"Joy of Life","overview":"简介","poster_path":"/a.jpg","release_date":"2019-11-26"},
+		{"id":1,"title":"庆余年","original_title":"Joy of Life","overview":"简介","poster_path":"/a.jpg","backdrop_path":"/bd.jpg","release_date":"2019-11-26"},
 		{"id":2,"title":"别的","poster_path":"","release_date":""}
 	]}`}
 	p := NewTMDB(doer, "KEY", "", "")
@@ -88,7 +88,10 @@ func TestTMDBMovieSearchWithAPIKey(t *testing.T) {
 	if c.CoverURL != "https://image.tmdb.org/t/p/w500/a.jpg" {
 		t.Fatalf("cover = %q", c.CoverURL)
 	}
-	if cs[1].CoverURL != "" || cs[1].Year != "" {
+	if c.BackdropURL != "https://image.tmdb.org/t/p/w1280/bd.jpg" {
+		t.Fatalf("backdrop = %q", c.BackdropURL)
+	}
+	if cs[1].CoverURL != "" || cs[1].Year != "" || cs[1].BackdropURL != "" {
 		t.Fatalf("空字段不应编造: %+v", cs[1])
 	}
 }

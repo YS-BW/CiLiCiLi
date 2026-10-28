@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS media (
   meta_overview   TEXT NOT NULL DEFAULT '',
   meta_cover      TEXT NOT NULL DEFAULT '',
   meta_cover_src  TEXT NOT NULL DEFAULT '',
+  meta_backdrop   TEXT NOT NULL DEFAULT '',
   meta_director   TEXT NOT NULL DEFAULT '',
   meta_actors     TEXT NOT NULL DEFAULT '',
   meta_area       TEXT NOT NULL DEFAULT '',
@@ -123,12 +124,43 @@ func NewStore(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("初始化媒体库: %w", err)
 	}
+	// 轻量迁移：老库没有 meta_backdrop 列时补上（只增不改，重复执行安全）。
+	if err := ensureColumn(db, "media", "meta_backdrop", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("迁移媒体库 meta_backdrop: %w", err)
+	}
 	s := &Store{db: db, now: time.Now}
 	if err := s.recoverInterrupted(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("恢复媒体库任务: %w", err)
 	}
 	return s, nil
+}
+
+// ensureColumn 在列不存在时对表执行 ALTER TABLE ADD COLUMN（SQLite 无 IF NOT EXISTS）。
+func ensureColumn(db *sql.DB, table, column, ddl string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + ddl)
+	return err
 }
 
 // Close 关闭数据库。
@@ -142,7 +174,7 @@ func (s *Store) Close() error {
 // GetMedia 读取一个聚合实体（含源引用、候选、封面）。
 func (s *Store) GetMedia(id string) (*Media, error) {
 	row := s.db.QueryRow(`SELECT id, kind, title, year, meta_title, meta_year, meta_overview,
-		meta_cover, meta_cover_src, meta_director, meta_actors, meta_area, meta_genres, meta_source,
+		meta_cover, meta_cover_src, meta_backdrop, meta_director, meta_actors, meta_area, meta_genres, meta_source,
 		metadata_status, match_status, confidence, updated_at FROM media WHERE id = ?`, id)
 	m := &Media{}
 	var (
@@ -150,7 +182,7 @@ func (s *Store) GetMedia(id string) (*Media, error) {
 		coverSrc   string
 	)
 	err := row.Scan(&m.ID, &m.Kind, &m.Title, &m.Year, &m.Metadata.Title, &m.Metadata.Year,
-		&m.Metadata.Overview, &m.Metadata.Cover, &coverSrc, &m.Metadata.Director, &m.Metadata.Actors,
+		&m.Metadata.Overview, &m.Metadata.Cover, &coverSrc, &m.Metadata.Backdrop, &m.Metadata.Director, &m.Metadata.Actors,
 		&m.Metadata.Area, &m.Metadata.Genres, &metaSource, &m.MetadataStatus, &m.MatchStatus,
 		&m.Metadata.Confidence, &m.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -160,6 +192,7 @@ func (s *Store) GetMedia(id string) (*Media, error) {
 		return nil, err
 	}
 	m.Metadata.Source = metaSource
+	m.Backdrop = m.Metadata.Backdrop
 	// provider/external_id 在 GetMedia 的扫描里未取，这里单独补上。
 	_ = s.db.QueryRow(`SELECT provider, external_id FROM media WHERE id=?`, id).Scan(&m.Provider, &m.ExternalID)
 	m.Cover.URL = m.Metadata.Cover
@@ -308,9 +341,10 @@ func (s *Store) UpsertSourceItems(refs []SourceRef, now time.Time) (map[string]s
 // UpdateMetadata 写入已确认/选中的第三方元数据（不覆盖采集站已有非空标题）。
 func (s *Store) UpdateMetadata(m *Media, now time.Time) error {
 	_, err := s.db.Exec(`UPDATE media SET meta_title=?, meta_year=?, meta_overview=?, meta_cover=?,
-		meta_cover_src=?, meta_director=?, meta_actors=?, meta_area=?, meta_genres=?, meta_source=?,
+		meta_cover_src=?, meta_backdrop=?, meta_director=?, meta_actors=?, meta_area=?, meta_genres=?, meta_source=?,
 		metadata_status=?, match_status=?, provider=?, external_id=?, confidence=?, updated_at=? WHERE id=?`,
 		m.Metadata.Title, m.Metadata.Year, m.Metadata.Overview, m.Metadata.Cover, m.Cover.Source,
+		m.Metadata.Backdrop,
 		m.Metadata.Director, m.Metadata.Actors, m.Metadata.Area, m.Metadata.Genres, m.Metadata.Source,
 		m.MetadataStatus, m.MatchStatus, m.Provider, m.ExternalID, m.Metadata.Confidence,
 		now.UnixMilli(), m.ID)

@@ -25,8 +25,10 @@ const (
 	// DNS 污染，而 api.tmdb.org 是同一套官方 API、可直连。
 	defaultTMDBBase = "https://api.tmdb.org"
 	tmdbImageBase   = "https://image.tmdb.org/t/p/w500"
-	tmdbTimeout     = 8 * time.Second
-	tmdbMaxBytes    = 4 << 20
+	// tmdbBackdropBase 横版剧照（16:9），供 Web 主推/详情背景大图使用；w1280 比 w500 清晰。
+	tmdbBackdropBase = "https://image.tmdb.org/t/p/w1280"
+	tmdbTimeout      = 8 * time.Second
+	tmdbMaxBytes     = 4 << 20
 )
 
 // TMDB 是 The Movie Database 元数据源，支持 v3 API key 或 v4 读访问令牌。
@@ -68,6 +70,7 @@ type tmdbSearchResponse struct {
 		OriginalName  string `json:"original_name"`
 		Overview      string `json:"overview"`
 		PosterPath    string `json:"poster_path"`
+		BackdropPath  string `json:"backdrop_path"`
 		ReleaseDate   string `json:"release_date"`
 		FirstAirDate  string `json:"first_air_date"`
 	} `json:"results"`
@@ -153,6 +156,9 @@ func (p *TMDB) Search(ctx context.Context, req media.Request) ([]media.Candidate
 		}
 		if pp := strings.TrimSpace(r.PosterPath); pp != "" {
 			c.CoverURL = tmdbImageBase + pp
+		}
+		if bp := strings.TrimSpace(r.BackdropPath); bp != "" {
+			c.BackdropURL = tmdbBackdropBase + bp
 		}
 		out = append(out, c)
 		if len(out) >= 10 {

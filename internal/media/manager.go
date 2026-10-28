@@ -191,12 +191,23 @@ func (m *Manager) SearchCards(items []model.SearchResultItem, now time.Time) ([]
 		if path, err := m.store.CoverPath(id); err == nil && path != "" {
 			cover = m.coverURL(id, entity.Cover.Hash)
 		}
+		// 横版图回退到最高分候选（与 Get 保持一致），保证卡片也能拿到 backdrop。
+		backdrop := entity.Backdrop
+		if backdrop == "" {
+			for _, c := range entity.Candidates {
+				if strings.TrimSpace(c.BackdropURL) != "" {
+					backdrop = c.BackdropURL
+					break
+				}
+			}
+		}
 		cards = append(cards, SearchMedia{
 			ID:          id,
 			Kind:        entity.Kind,
 			Title:       firstNonEmpty(entity.Metadata.Title, entity.Title),
 			Year:        firstNonEmpty(entity.Metadata.Year, entity.Year),
 			Cover:       cover,
+			Backdrop:    backdrop,
 			TypeName:    g.refs[0].TypeName,
 			Remarks:     g.refs[0].Remarks,
 			SourceCount: len(g.refs),
@@ -238,6 +249,17 @@ func (m *Manager) Get(ctx context.Context, id string) (*Media, error) {
 	}
 	if media.Metadata.Year == "" {
 		media.Metadata.Year = media.Year
+	}
+	// 横版图：已确认元数据为空时，回退到最高分候选的 backdropUrl（候选按分数排序），
+	// 让 Web 首页/详情在「未人工确认」时也能拿到横版大图。
+	if media.Backdrop == "" {
+		for _, c := range media.Candidates {
+			if strings.TrimSpace(c.BackdropURL) != "" {
+				media.Backdrop = c.BackdropURL
+				media.Metadata.Backdrop = c.BackdropURL
+				break
+			}
+		}
 	}
 	if media.Metadata.Source == "" {
 		media.Metadata.Source = "source"
@@ -324,6 +346,10 @@ func (m *Manager) applyCandidate(media *Media, c Candidate, status MatchStatus) 
 	}
 	if media.Metadata.Overview == "" {
 		media.Metadata.Overview = c.Overview
+	}
+	// 横版剧照：优先保留已有非空值（人工/更高分候选），为空时才用当前候选补。
+	if media.Metadata.Backdrop == "" && strings.TrimSpace(c.BackdropURL) != "" {
+		media.Metadata.Backdrop = c.BackdropURL
 	}
 	if media.Metadata.Source == "" || media.Metadata.Source == "source" {
 		media.Metadata.Source = c.Provider
