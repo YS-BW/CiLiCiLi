@@ -71,7 +71,7 @@ img { display: block; }
   background:
     linear-gradient(90deg, #000 30%, rgba(0,0,0,.7) 48%, transparent 75%),
     linear-gradient(0deg, #000 2%, transparent 45%); }
-.hero .content { position: relative; z-index: 2; padding: 0 48px 90px; max-width: 640px; }
+.hero .content { position: relative; z-index: 2; padding: 0 48px 150px; max-width: 640px; }
 .kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 2px; color: #bbb; margin-bottom: 14px; }
 .kicker b { color: var(--accent); font-weight: 900; }
 .hero h1 { font-size: 56px; line-height: 1.03; font-weight: 900; letter-spacing: -1px; margin-bottom: 16px; text-shadow: 0 4px 30px rgba(0,0,0,.7); }
@@ -82,7 +82,7 @@ img { display: block; }
 .hero-skeleton { height: 82vh; min-height: 560px; background: linear-gradient(120deg,#161616,#0a0a0a); }
 
 /* ---------- rows ---------- */
-.rows { position: relative; z-index: 3; margin-top: -100px; padding-bottom: 70px; }
+.rows { position: relative; z-index: 3; margin-top: -150px; padding-bottom: 80px; }
 .rows.flat { margin-top: 20px; }
 .row { margin-bottom: 40px; }
 .row h3 { font-size: 20px; font-weight: 700; margin: 0 48px 14px; }
@@ -99,17 +99,19 @@ img { display: block; }
 .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 2px; }
 
 /* ---------- grid (search/fav) ---------- */
-.page-pad { padding: 108px 48px 60px; }
+.page-pad { padding: 100px 48px 70px; }
 .page-title { font-size: 32px; font-weight: 900; margin-bottom: 18px; }
-.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; }
-@media (max-width: 1100px) { .grid { grid-template-columns: repeat(4, 1fr); } }
-@media (max-width: 760px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+/* auto-fill + 固定列宽：所有卡片同宽高比，网格永远规整 */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 26px 18px; }
 .gcard { cursor: pointer; }
-.gcard .poster { aspect-ratio: 2/3; border-radius: 8px; background: linear-gradient(135deg,#232323,#0d0d0d); position: relative; overflow: hidden; transition: box-shadow .18s; }
-.gcard:hover .poster { box-shadow: 0 0 0 2px #fff; }
-.gcard .poster img { width: 100%; height: 100%; object-fit: cover; }
-.gcard .srcbadge { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.72); font-size: 11px; padding: 3px 8px; border-radius: 5px; }
-.gcard .n { margin-top: 9px; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcard .poster { aspect-ratio: 2/3; border-radius: 6px; background: linear-gradient(135deg,#232323,#0d0d0d);
+  position: relative; overflow: hidden; transition: transform .2s, box-shadow .2s; }
+.gcard:hover .poster { transform: scale(1.05); box-shadow: 0 8px 24px rgba(0,0,0,.7); }
+.gcard .poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gcard .srcbadge { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.78); font-size: 11px;
+  padding: 3px 8px; border-radius: 4px; z-index: 2; }
+.gcard .n { margin-top: 9px; font-size: 13px; font-weight: 500; color: #e5e5e5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- search ---------- */
 .search-hero { display: flex; gap: 12px; margin-bottom: 16px; }
@@ -123,29 +125,47 @@ img { display: block; }
 @keyframes pl { 0%,100% { opacity: .25 } 50% { opacity: 1 } }
 
 /* ---------- detail ---------- */
-.detail-hero { position: relative; min-height: 62vh; display: flex; align-items: flex-end; overflow: hidden; padding-top: 90px; }
+.detail-hero { position: relative; min-height: 74vh; display: flex; align-items: flex-end; overflow: hidden; padding-top: 100px; }
 .detail-hero .bg { position: absolute; inset: 0; background-size: cover; background-position: center 25%; }
 .detail-hero .bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg,#000 2%,transparent 65%), linear-gradient(90deg,#000 5%,transparent 65%); }
 /* 满屏横版剧照（TMDB backdrop） */
-.detail-hero .bg-wide { position: absolute; inset: 0; background-size: cover; background-position: center 25%; }
+.detail-hero .bg-wide { position: absolute; inset: 0; background-size: cover; background-position: center 20%; }
 .detail-hero .bg-wide::after { content: ""; position: absolute; inset: 0; background:
-  linear-gradient(0deg, #000 0%, rgba(0,0,0,.55) 28%, transparent 60%),
-  linear-gradient(90deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.6) 35%, transparent 70%); }
+  linear-gradient(0deg, #000 0%, rgba(0,0,0,.7) 20%, transparent 55%),
+  linear-gradient(90deg, rgba(0,0,0,.95) 0%, rgba(0,0,0,.65) 32%, transparent 62%); }
 .detail-hero .bg-blur { position: absolute; inset: -8%; background-size: cover; background-position: center; filter: blur(40px) brightness(.5); transform: scale(1.15); }
-.detail-hero .inner { position: relative; z-index: 2; padding: 0 48px 36px; width: 100%; }
-.detail-hero h1 { font-size: 44px; font-weight: 900; margin-bottom: 12px; letter-spacing: -.5px; }
-.detail-hero .meta { display: flex; gap: 14px; color: #ccc; font-size: 14px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.detail-hero .inner { position: relative; z-index: 2; padding: 0 48px 48px; width: 100%; max-width: 760px; }
+.detail-hero h1 { font-size: 52px; font-weight: 900; margin-bottom: 14px; letter-spacing: -1px; text-shadow: 0 4px 24px rgba(0,0,0,.6); }
+.detail-hero .meta { display: flex; gap: 16px; color: #ccc; font-size: 15px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
 .detail-hero .meta .score { color: var(--green); font-weight: 700; }
-.detail-hero .desc { max-width: 560px; color: #d0d0d0; font-size: 14px; line-height: 1.6; margin-bottom: 22px;
+.detail-hero .desc { max-width: 620px; color: #d4d4d4; font-size: 15px; line-height: 1.65; margin-bottom: 26px;
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.dbtns { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-.lines { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; color: #999; flex-wrap: wrap; }
-.lines .l { padding: 6px 14px; border-radius: 6px; border: 1px solid #333; cursor: pointer; color: #ccc; }
+.dbtns { display: flex; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+
+/* hero 下方的正片内容区：两栏，左侧选线路/分集，右上是元信息，填满屏幕 */
+.detail-body { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(260px,1fr); gap: 40px;
+  padding: 8px 48px 80px; }
+@media (max-width: 900px) { .detail-body { grid-template-columns: 1fr; gap: 20px; } }
+.detail-body .sec-title { font-size: 19px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+.lines { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; font-size: 13px; color: #999; flex-wrap: wrap; }
+.lines .l { padding: 7px 16px; border-radius: 20px; border: 1px solid #3a3a3a; cursor: pointer; color: #ccc; font-size: 13px; transition: .15s; }
+.lines .l:hover { border-color: #888; }
 .lines .l.active { background: #fff; color: #000; border-color: #fff; font-weight: 700; }
-.eps { display: flex; gap: 9px; flex-wrap: wrap; max-width: 980px; max-height: 200px; overflow: auto; padding-bottom: 6px; }
-.ep { padding: 8px 15px; border-radius: 6px; background: #1c1c1c; border: 1px solid #2c2c2c; font-size: 13px; color: #bbb; }
-.ep.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.ep:hover { border-color: #666; color: #fff; }
+
+/* 分集：规整网格（Netflix 选集列表风），不用散乱小方块 */
+.eps { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 320px; overflow: auto; padding-right: 6px; }
+.eps::-webkit-scrollbar { width: 6px; }
+.eps::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+.ep { padding: 12px 14px; border-radius: 6px; background: #181818; border: 1px solid #2a2a2a; font-size: 13px;
+  color: #ccc; text-align: center; transition: .15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep:hover { background: #262626; border-color: #555; color: #fff; }
+.ep.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+
+/* 右侧信息栏 */
+.detail-aside { color: #b3b3b3; font-size: 14px; line-height: 1.8; }
+.detail-aside .row { margin-bottom: 14px; }
+.detail-aside .k { color: #777; margin-right: 8px; }
+.detail-aside .v { color: #e5e5e5; }
 
 /* ---------- player modal ---------- */
 .player-modal { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 90; display: flex; align-items: center; justify-content: center; }

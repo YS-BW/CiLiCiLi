@@ -150,30 +150,43 @@ export default function Detail() {
             <button className="btn play" onClick={() => setPlaying(true)}>▶ {episode ? `播放 ${episode.name || `第${episode.index}集`}` : '播放'}</button>
             <button className="btn ghost" onClick={toggleFav}>{faved ? '✓ 已收藏' : '☆ 收藏'}</button>
           </div>
+        </div>
+      </section>
 
-          {/* 线路 */}
+      {/* 正片内容区：左选集 + 右信息，填满屏幕 */}
+      <section className="detail-body">
+        <div>
           {detail.playLines.length > 1 && (
             <div className="lines">
-              <span>线路：</span>
+              <span>线路</span>
               {detail.playLines.map((l, i) => (
                 <span key={l.id} className={`l${i === lineIdx ? ' active' : ''}`}
                   onClick={() => { setLineIdx(i); setEpIdx(0); }}>{l.name || `线路${i + 1}`}{l.preferred ? ' · 推荐' : ''}</span>
               ))}
             </div>
           )}
-
-          {/* 分集 */}
+          <div className="sec-title">选集{line ? <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>共 {line.episodes.length} 集</span> : null}</div>
           {line && line.episodes.length > 0 && (
             <div className="eps">
               {line.episodes.map((e, i) => (
                 <span key={e.id} className={`ep${i === epIdx ? ' active' : ''}`}
-                  onClick={() => { setEpIdx(i); if (playing) showHint(`切换到 ${e.name || `第${e.index}集`}`); }}>
+                  onClick={() => { setEpIdx(i); setPlaying(true); }}>
                   {e.name || `第${e.index}集`}
                 </span>
               ))}
             </div>
           )}
         </div>
+        <aside className="detail-aside">
+          <div className="sec-title">详情</div>
+          {vi.director ? <div className="row"><span className="k">导演</span><span className="v">{vi.director}</span></div> : null}
+          {vi.actor ? <div className="row"><span className="k">主演</span><span className="v">{vi.actor}</span></div> : null}
+          {vi.typeName ? <div className="row"><span className="k">类型</span><span className="v">{vi.typeName}</span></div> : null}
+          {vi.area ? <div className="row"><span className="k">地区</span><span className="v">{vi.area}</span></div> : null}
+          {vi.year ? <div className="row"><span className="k">年份</span><span className="v">{vi.year}</span></div> : null}
+          {vi.remarks ? <div className="row"><span className="k">状态</span><span className="v">{vi.remarks}</span></div> : null}
+          {vi.sourceName ? <div className="row"><span className="k">片源</span><span className="v">{vi.sourceName}</span></div> : null}
+        </aside>
       </section>
 
       {playing && episode && (
