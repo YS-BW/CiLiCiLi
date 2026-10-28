@@ -40,4 +40,9 @@ type Options struct {
 	LiveAllowPrivate bool
 	// HeaderTimeout 是等待上游响应头的超时；直播可放宽。
 	HeaderTimeout time.Duration
+
+	// ImageCacheDir 是成功图片的本地磁盘缓存目录；为空则不做磁盘缓存。
+	ImageCacheDir string
+	// ImageCacheTTL 是图片磁盘缓存的过期时间；<=0 时由实现取默认值（7 天）。
+	ImageCacheTTL time.Duration
 }

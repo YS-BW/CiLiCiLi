@@ -251,6 +251,7 @@ func run() error {
 		DoubanReferer:       true,
 		LiveAllowPrivate:    cfg.LiveAllowPrivate,
 		HeaderTimeout:       cfg.RequestTimeout,
+		ImageCacheDir:       cfg.ImageCacheDir,
 	})
 	liveProxy := proxy.NewLive(proxy.Options{
 		Client:           client,

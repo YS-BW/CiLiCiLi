@@ -1024,3 +1024,55 @@ func TestImageFailureNegativeCache(t *testing.T) {
 		t.Fatalf("命中失败缓存后不应再访问上游，calls = %d", client.count())
 	}
 }
+
+func TestImageDiskCacheServesSecondRequestFromDisk(t *testing.T) {
+	dir := t.TempDir()
+	imgBody := strings.Repeat("JPEGDATA", 100)
+	client := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
+		return textResponse(rawURL, http.StatusOK, imgBody, "image/jpeg"), nil
+	}}
+	h := New(Options{Client: client, ImageCacheDir: dir})
+	target := "https://img.example.com/a.jpg"
+
+	// 第一次：回源并落盘
+	rec1 := httptest.NewRecorder()
+	h.ServeHTTP(rec1, proxyRequest(http.MethodGet, target))
+	if rec1.Code != http.StatusOK || rec1.Body.String() != imgBody {
+		t.Fatalf("第一次响应异常: code=%d body=%q", rec1.Code, rec1.Body.String())
+	}
+	if client.count() != 1 {
+		t.Fatalf("第一次应回源 1 次，实际 %d", client.count())
+	}
+	if got := rec1.Header().Get("Cache-Control"); !strings.Contains(got, "max-age") {
+		t.Fatalf("图片应带长缓存头，got %q", got)
+	}
+
+	// 第二次：应命中磁盘缓存，不再回源
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, proxyRequest(http.MethodGet, target))
+	if rec2.Code != http.StatusOK || rec2.Body.String() != imgBody {
+		t.Fatalf("第二次响应异常: code=%d body=%q", rec2.Code, rec2.Body.String())
+	}
+	if client.count() != 1 {
+		t.Fatalf("第二次应命中磁盘缓存不再回源，实际回源 %d 次", client.count())
+	}
+}
+
+func TestImageDiskCacheSkipsRangeRequests(t *testing.T) {
+	dir := t.TempDir()
+	client := &fakeDoer{fn: func(_ context.Context, rawURL string, _ upstream.Options) (*upstream.Response, error) {
+		return textResponse(rawURL, http.StatusOK, "IMG", "image/jpeg"), nil
+	}}
+	h := New(Options{Client: client, ImageCacheDir: dir})
+	target := "https://img.example.com/r.jpg"
+
+	req := proxyRequest(http.MethodGet, target)
+	req.Header.Set("Range", "bytes=0-1")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	// Range 请求不写缓存；再来一次普通请求仍应回源（因为缓存目录为空）
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, proxyRequest(http.MethodGet, target))
+	if client.count() != 2 {
+		t.Fatalf("Range 请求不应写缓存，期望第二次仍回源，实际回源 %d 次", client.count())
+	}
+}

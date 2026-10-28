@@ -25,6 +25,7 @@ type Config struct {
 	MediaDB          string
 	MediaCoverDir    string
 	MediaCoverBase   string
+	ImageCacheDir    string
 	MediaEnabled     bool
 	MediaAutoConfirm bool
 	TMDBAPIKey       string
@@ -87,6 +88,7 @@ func Load() (*Config, error) {
 		MediaDB:          envString("MEDIA_DB", filepath.Join(dataDir, "media.db")),
 		MediaCoverDir:    envString("MEDIA_COVER_DIR", filepath.Join(dataDir, "covers")),
 		MediaCoverBase:   envString("MEDIA_COVER_BASE", "/api/media"),
+		ImageCacheDir:    envString("IMAGE_CACHE_DIR", filepath.Join(dataDir, "imgcache")),
 		MediaEnabled:     envBool("MEDIA_ENABLED", true),
 		MediaAutoConfirm: envBool("MEDIA_AUTO_CONFIRM", false),
 		TMDBAPIKey:       envString("TMDB_API_KEY", ""),

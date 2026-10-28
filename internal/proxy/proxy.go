@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,6 +108,35 @@ func looksLikeImage(u *url.URL) bool {
 	return false
 }
 
+// imageContentTypeFromExt 按图片后缀推断 Content-Type（磁盘缓存命中时用）。
+func imageContentTypeFromExt(u *url.URL) string {
+	if u == nil {
+		return "image/jpeg"
+	}
+	switch strings.ToLower(pathExt(u.Path)) {
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
+	case ".avif":
+		return "image/avif"
+	case ".bmp":
+		return "image/bmp"
+	default:
+		return "image/jpeg"
+	}
+}
+
+func pathExt(p string) string {
+	i := strings.LastIndexByte(p, '.')
+	if i < 0 {
+		return ""
+	}
+	return p[i:]
+}
+
 var (
 	// doubanRefererHosts 是需要伪装 Referer 的豆瓣域（精确后缀匹配）。
 	doubanRefererHosts  = []string{"douban.com", "doubanio.com"}
@@ -116,14 +146,15 @@ var (
 // proxyHandler 同时服务点播代理与直播流代理，两者只在超时、重试、
 // 内网放行与缓存策略上不同。
 type proxyHandler struct {
-	opts      Options
-	live      bool
-	imageFail *imageFailCache
+	opts       Options
+	live       bool
+	imageFail  *imageFailCache
+	imageCache *imageDiskCache
 }
 
 // New 构造点播/图片流式代理。
 func New(opts Options) http.Handler {
-	return &proxyHandler{opts: opts, imageFail: newImageFailCache()}
+	return &proxyHandler{opts: opts, imageFail: newImageFailCache(), imageCache: newImageDiskCache(opts.ImageCacheDir, opts.ImageCacheTTL)}
 }
 
 // NewLive 构造直播长连接代理：只限制响应头等待时间，body 不限时。
@@ -233,9 +264,37 @@ func (h *proxyHandler) forward(w http.ResponseWriter, r *http.Request, target *u
 		h.writeError(w, http.StatusBadGateway, "封面不可用")
 		return
 	}
+	// 图片磁盘缓存命中：直接本地文件返回，避免每次回源（采集站首字节常 1~2s）。
+	// 仅对无 Range 的整图请求做缓存（分片/断点续传走原流程）。
+	noRange := r.Header.Get("Range") == ""
+	if isImage && noRange {
+		if p := h.imageCache.get(target.String()); p != "" {
+			if f, ferr := os.Open(p); ferr == nil {
+				defer f.Close()
+				w.Header().Set("Content-Type", imageContentTypeFromExt(target))
+				w.Header().Set("Cache-Control", imageCacheControl)
+				h.setCommonHeaders(w)
+				if fi, serr := f.Stat(); serr == nil {
+					w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = io.Copy(w, f)
+				return
+			}
+		}
+	}
 
 	upstreamOpts := h.upstreamOptions(r, target)
 	resp, err := h.opts.Client.Do(ctx, target.String(), upstreamOpts)
+	if err != nil && !h.live && isDoubanImageTarget(target) {
+		if mirror := doubanImageMirror(target); mirror != nil {
+			if mresp, merr := h.opts.Client.Do(ctx, mirror.String(), h.upstreamOptions(r, mirror)); merr == nil && mresp != nil {
+				h.debug("豆瓣图片走镜像兜底（主域名失败）", "url", target.String(), "mirror", mirror.String())
+				resp = mresp
+				err = nil
+			}
+		}
+	}
 	if err != nil {
 		if r.Context().Err() != nil {
 			return // 客户端已断开，不再写响应
@@ -293,6 +352,45 @@ func (h *proxyHandler) forward(w http.ResponseWriter, r *http.Request, target *u
 	if isImage && !isImageContentType(contentType) {
 		// 图床返回 HTML/空体：缓存失败，避免反复等待。
 		h.imageFail.mark(target.String())
+		h.serveStream(w, r, resp)
+		return
+	}
+	// 图片成功取回且是整图请求：读入内存→落盘缓存→从内存返回。
+	// 这样二次访问直接命中磁盘缓存，避免每次 1~2s 回源。
+	status := statusOrOK(resp.StatusCode)
+	if isImage && noRange && status == http.StatusOK && h.imageCache != nil {
+		const maxCacheSize = 8 << 20
+		body, rerr := io.ReadAll(io.LimitReader(resp.Body, maxCacheSize+1))
+		if rerr == nil && len(body) <= maxCacheSize {
+			h.imageCache.put(target.String(), body)
+			w.Header().Set("Content-Type", contentType)
+			if etag := resp.Header.Get("ETag"); etag != "" {
+				w.Header().Set("ETag", etag)
+			}
+			w.Header().Set("Cache-Control", imageCacheControl)
+			h.setCommonHeaders(w)
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.WriteHeader(http.StatusOK)
+			if r.Method != http.MethodHead {
+				_, _ = w.Write(body)
+			}
+			return
+		}
+		// 读取失败或超限：回退正常流式转发（body 已被部分消费则无法复用，直接返回错误更安全）。
+		if rerr != nil {
+			h.writeError(w, http.StatusBadGateway, "封面获取失败")
+			return
+		}
+		// 超限：不用缓存，直接返回已读部分（罕见大图）。
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Cache-Control", imageCacheControl)
+		h.setCommonHeaders(w)
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		w.WriteHeader(http.StatusOK)
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(body)
+		}
+		return
 	}
 	h.serveStream(w, r, resp)
 }
@@ -303,6 +401,7 @@ func (h *proxyHandler) upstreamOptions(r *http.Request, target *url.URL) upstrea
 		Headers:       h.upstreamHeaders(r, target),
 		HeaderTimeout: h.opts.HeaderTimeout,
 		SafeRedirects: true,
+		AllowPrivate:  h.opts.LiveAllowPrivate,
 		// 0 表示「非流式读取」用默认上限；Do 返回的 body 由调用方流式消费，不受限。
 		MaxBytes: 0,
 	}
@@ -310,8 +409,7 @@ func (h *proxyHandler) upstreamOptions(r *http.Request, target *url.URL) upstrea
 		opts.HeaderTimeout = defaultHeaderTimeout
 	}
 	if h.live {
-		// 直播：body 不限时、不重试；部署者可显式放行内网自建源。
-		opts.AllowPrivate = h.opts.LiveAllowPrivate
+		// 直播：body 不限时、不重试。
 		opts.Retries = 0
 	} else {
 		opts.Timeout = proxyTotalTimeout
