@@ -38,6 +38,19 @@
 - 注意 `/srv/cilicili-downloads/` 必须是 755：一开始把 APK 放在 `/opt/cilicili-backend/downloads/`
   被 nginx 403 了，因为 `/opt/cilicili-backend` 是 `drwx------`，worker 无法穿越。
 
+### 2026-10-30 收尾：三处二进制/前端对齐
+
+- 后端改用 `-buildvcs=false`（`make linux`），构建可复现：同一份源码两次编译哈希相同。
+  之前 Go 默认把 git 提交信息编进二进制，每提交一次哈希就变，没法用哈希判断
+  「线上跑的是不是这份代码」。
+- 当前三处一致：
+  - 后端二进制 `eb382861757b175f3f192edbcc946596ea80f37f302cc65b282e7ad2ac6e604c`
+    （可复现重编 / 本地容器 / VPS 容器 全相等）
+  - 前端 `assets/index-BBajjgDj.js`、`assets/index-DCF-cOMH.css`、`assets/Player-Bc5s8Rpv.js`、
+    `sw.js`、`index.html` 逐字节相同（仓库 dist / 本地容器 / VPS 容器 / APK 内置）
+  - APK `0a21e565…` 本地发行版与 VPS 下载文件同哈希
+- VPS 新 release：`/opt/cilicili-backend/releases/be-20261030-0205`（只换二进制，dist 沿用 0150）。
+
 ## 2026-10-28 更新：TMDB 横版图（backdrop）
 
 - 新增：TMDB 搜索结果解析 `backdrop_path`，`Media` / `Media.metadata` / `SearchMedia` 均返回
