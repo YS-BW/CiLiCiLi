@@ -2,6 +2,31 @@
 
 部署时间：2026-10-25。服务器：`124.221.121.195`。
 
+## 2026-10-30 更新：后端全量 + 前端按需加载
+
+- 新镜像 tag：`cilicili-backend:web-20261030-002007`（后端 + 前端一起换），release 目录
+  `/opt/cilicili-backend/releases/web-20261030-002007`。
+- 本次后端带来的修复：`absYearDiff` 改用 `strconv.Atoi`（原先 `atoiSafe` 上限 999，凡是带 `year`
+  参数的 big 封面请求全部 404）；首页预取改用 `SearchQuiet`（不再计入源熔断）；`/api/cover` 统一封面接口；
+  搜索源并发 6；镜像磁盘缓存 `ImageCacheDir`。
+- 备份：`/opt/cilicili-backend/backups/pre-web-20261030-002007/`（sources/userdata/health + media/cache 打包）。
+- 校验：容器 healthy、源 **23 保留**、`/api/douban` 带评分与 sourceCount、搜索正常、
+  `cover?big=1` 200/188KB、`cover?big=0` 200/107KB。
+- 随后前端小改（设置面板 + 播放器懒加载），只重建前端：
+  `cilicili-backend:web-20261030-0042`（release `/opt/cilicili-backend/releases/web-20261030-0042`，`current` 指向它）。
+  首屏 JS 从 942KB(gzip 289KB) 降到 202KB(gzip 65KB)，ArtPlayer+hls.js 的
+  `Player-*.js` 只在进入播放页时才下载。
+- 回退：`ln -sfn /opt/cilicili-backend/releases/web-20261030-002007 /opt/cilicili-backend/current && cd /opt/cilicili-backend/current && docker compose up -d`。
+
+### APK 下载（同日新增）
+
+- 宿主 Nginx 新增 `location /app/ { alias /srv/cilicili-downloads/; ... }`（插在 `location /api/` 之前），
+  改动前备份到 `/opt/cilicili-backend/downloads/antigravity.conf.bak-*`，`nginx -t` 通过后 reload。
+- APK 放 `/srv/cilicili-downloads/cilicili-webapp.apk`（755 目录 / 644 文件），**不进后端镜像**。
+  坑：一开始放在 `/opt/cilicili-backend/downloads/`，该目录是 `drwx------`，Nginx worker 无法穿越 → 403。
+- 下载地址：`https://124.221.121.195/app/cilicili-webapp.apk`
+  （响应 200、7061464 字节、`application/vnd.android.package-archive`）。
+
 ## 2026-10-28 更新：TMDB 横版图（backdrop）
 
 - 新增：TMDB 搜索结果解析 `backdrop_path`，`Media` / `Media.metadata` / `SearchMedia` 均返回
