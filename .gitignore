@@ -33,3 +33,6 @@ __pycache__/
 /android-webview/local.properties
 # 由 scripts/build-apk.sh 从 web/dist 同步生成
 /android-webview/app/src/main/assets/web/
+
+# 打包产物
+/release/
