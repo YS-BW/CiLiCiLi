@@ -27,6 +27,17 @@
 - 下载地址：`https://124.221.121.195/app/cilicili-webapp.apk`
   （响应 200、7061464 字节、`application/vnd.android.package-archive`）。
 
+### 封面缓存 + 1.0.1 APK（同日）
+
+- `web-20261030-0135`：新增 `sw.js`（Service Worker 封面缓存），`/sw.js` 必须 200 且
+  `text/javascript`——源文件是编辑器建的 0600，nginx worker 读不了会 403，`chmod 644` 才正常。
+- `web-20261030-0150`：App 内跳过 SW 注册（原生缓存接管）+ 首屏继续用新 hash。
+- APK 1.0.1 上传到 `/srv/cilicili-downloads/cilicili-webapp.apk`
+  （7067562 字节，sha256 `0a21e565f7941bd976c733544c35450f6120aa072ea5605010a872db827483b9`），
+  `/app/cilicili-webapp.apk` 返回 200。
+- 注意 `/srv/cilicili-downloads/` 必须是 755：一开始把 APK 放在 `/opt/cilicili-backend/downloads/`
+  被 nginx 403 了，因为 `/opt/cilicili-backend` 是 `drwx------`，worker 无法穿越。
+
 ## 2026-10-28 更新：TMDB 横版图（backdrop）
 
 - 新增：TMDB 搜索结果解析 `backdrop_path`，`Media` / `Media.metadata` / `SearchMedia` 均返回
