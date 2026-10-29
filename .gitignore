@@ -25,3 +25,11 @@ __pycache__/
 
 # 参考项目（本地查看，不提交）
 /references/
+
+# Android 壳（android-webview）构建产物
+/android-webview/build/
+/android-webview/app/build/
+/android-webview/.gradle/
+/android-webview/local.properties
+# 由 scripts/build-apk.sh 从 web/dist 同步生成
+/android-webview/app/src/main/assets/web/

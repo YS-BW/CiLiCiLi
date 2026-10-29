@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { getSearchMode, setSearchMode, type SearchMode } from '../lib/settings';
+import { androidBridge, siteOrigin } from '../lib/native';
 import { IconSearch, IconGear, IconHome, IconUser, IconFolder } from './icons';
 
 export default function Nav() {
@@ -14,6 +15,7 @@ export default function Nav() {
   const nav = useNavigate();
   const loc = useLocation();
   const { logout } = useAuth();
+  const bridge = androidBridge();
 
   useEffect(() => {
     const onScroll = () => {
@@ -72,6 +74,16 @@ export default function Nav() {
                 <span>完整搜索<em>查全部源，更全但更慢</em></span>
               </label>
               <div className="sp-divider" />
+              {bridge ? (
+                <>
+                  <div className="sp-section">服务器</div>
+                  <div className="sp-server">
+                    <span className="sp-server-url" title={siteOrigin()}>{siteOrigin()}</span>
+                    <button className="sp-server-btn" onClick={() => bridge.openServerSettings()}>修改</button>
+                  </div>
+                  <div className="sp-divider" />
+                </>
+              ) : null}
               <button className="sp-logout" onClick={() => logout()}>退出登录</button>
             </div>
           ) : null}

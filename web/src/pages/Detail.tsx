@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
-import Player from '../components/Player';
 import { getSources, rememberSources } from '../lib/sourcesCache';
+
+// 播放器（ArtPlayer + hls.js，约占一半体积）只在真正要播时下载，其它页面首屏 JS 因此减半。
+const Player = lazy(() => import('../components/Player'));
 
 export default function Detail() {
   const { sourceKey = '', vodId = '' } = useParams();
@@ -251,15 +253,17 @@ export default function Detail() {
             </div>
           </div>
           <div className="nf-video">
-            <Player
-              url={playUrl}
-              episodeKey={episode.id}
-              getRestorePosition={restorePosition}
-              onProgress={reportProgress}
-              onEnded={nextEpisode}
-              onHint={showHint}
-              onRequestSwitchSource={() => { showHint('播放失败，请切换线路或片源'); }}
-            />
+            <Suspense fallback={<div className="center-fill"><div className="spinner" /></div>}>
+              <Player
+                url={playUrl}
+                episodeKey={episode.id}
+                getRestorePosition={restorePosition}
+                onProgress={reportProgress}
+                onEnded={nextEpisode}
+                onHint={showHint}
+                onRequestSwitchSource={() => { showHint('播放失败，请切换线路或片源'); }}
+              />
+            </Suspense>
           </div>
           {showEps && line ? (
             <div className="nf-eps-panel">
