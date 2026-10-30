@@ -105,7 +105,42 @@ func (a *API) History(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []userdata.Progress{}
 	}
+	if a.deps.Media != nil {
+		for i := range items {
+			if strings.TrimSpace(items[i].Cover) != "" {
+				continue
+			}
+			entity, resolveErr := a.deps.Media.Resolve(
+				r.Context(), items[i].SourceKey, items[i].VodID,
+			)
+			if resolveErr != nil || entity == nil {
+				continue
+			}
+			cover := strings.TrimSpace(entity.Cover.URL)
+			if cover == "" {
+				cover = strings.TrimSpace(entity.Metadata.Cover)
+			}
+			if cover == "" {
+				continue
+			}
+			cover = toLocalCoverPath(cover)
+			items[i].Cover = cover
+			if err := a.deps.UserData.UpdateProgressCover(items[i].ID, cover); err != nil {
+				a.deps.Log.Debug("backfill history cover failed", "id", items[i].ID, "err", err)
+			}
+		}
+	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// toLocalCoverPath 把媒体库返回的服务端封面转成相对路径，使历史快照
+// 不绑定某一个服务器地址。
+func toLocalCoverPath(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if i := strings.Index(raw, "/api/media/"); i >= 0 {
+		return raw[i:]
+	}
+	return raw
 }
 
 // DeleteHistory 删除一条观看历史。

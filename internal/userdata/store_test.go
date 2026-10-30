@@ -171,6 +171,51 @@ func TestFavorites(t *testing.T) {
 	}
 }
 
+func TestUpdateProgressCoverBackfillsOnlyMissingCover(t *testing.T) {
+	s, err := New(filepath.Join(t.TempDir(), "userdata.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	now := time.Now()
+	missing, err := s.PutProgress(Progress{
+		SourceKey: "a", VodID: "1", EpisodeID: "e:1", Position: 10, Duration: 100,
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	existing, err := s.PutProgress(Progress{
+		SourceKey: "a", VodID: "2", EpisodeID: "e:1", Position: 20, Duration: 100,
+		Cover: "https://img.test/original.jpg",
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateProgressCover(missing.ID, "/api/media/media_1/cover"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateProgressCover(existing.ID, "https://img.test/other.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.History(false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[string]Progress, len(items))
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	got := byID[missing.ID]
+	if got.Cover != "/api/media/media_1/cover" || got.Position != 10 || got.UpdatedAt != missing.UpdatedAt {
+		t.Fatalf("backfilled progress = %+v", got)
+	}
+	if byID[existing.ID].Cover != "https://img.test/original.jpg" {
+		t.Fatalf("existing cover was overwritten: %+v", byID[existing.ID])
+	}
+}
+
 func TestPersistenceAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "userdata.db")
 	s, err := New(path)

@@ -21,7 +21,7 @@ var alwaysBlocked = []netip.Prefix{
 	netip.MustParsePrefix("fd00:ec2::254/128"),  // AWS IPv6 元数据
 }
 
-// privatePrefixes 是 AllowPrivate 时放行的内网/链路本地段。
+// privatePrefixes 是 AllowPrivate 时放行的内网/链路本地/TUN Fake-IP 段。
 var privatePrefixes = []netip.Prefix{
 	netip.MustParsePrefix("10.0.0.0/8"),
 	netip.MustParsePrefix("100.64.0.0/10"),
@@ -29,6 +29,8 @@ var privatePrefixes = []netip.Prefix{
 	netip.MustParsePrefix("169.254.0.0/16"),
 	netip.MustParsePrefix("172.16.0.0/12"),
 	netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("2001:2::/48"),
 	netip.MustParsePrefix("::1/128"),
 	netip.MustParsePrefix("fc00::/7"),
 	netip.MustParsePrefix("fe80::/10"),

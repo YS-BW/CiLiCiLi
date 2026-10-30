@@ -7,10 +7,10 @@
 | 页面本体（index.html / JS / CSS / 字体） | 全部打进 APK `assets/web/`，由 `shouldInterceptRequest` 从本地读，秒开、断网也能渲染骨架 |
 | 数据（`/api/*`） | 不拦截，交给系统网络栈直连真实服务器 |
 | 封面图片 | 原生 `ImageCache` 自建磁盘缓存（见下文「封面缓存」），不依赖 WebView 的 HTTP 缓存 |
-| 站点 origin | 仍然是真实服务器地址（如 `https://124.221.121.195`），所以同源、Cookie 登录态、hls.js 拉分片、Range 视频请求全部原生可用，**没有 CORS 问题** |
+| 站点 origin | 仍然是真实服务器地址（如 `https://<YOUR_VPS_IP>`），所以同源、Cookie 登录态、hls.js 拉分片、Range 视频请求全部原生可用，**没有 CORS 问题** |
 | 自签证书 | TOFU：首次连接记住证书 SHA-256，指纹变化时弹窗让用户确认 |
 | 视频全屏 | `WebChromeClient.onShowCustomView`，进入沉浸式全屏并保持常亮 |
-| 服务器地址 | 首启默认 `https://124.221.121.195`；在 App 内「设置 → 服务器 → 修改」可改，也可以在浏览器里改（浏览器不显示该入口） |
+| 服务器地址 | 首启默认 `https://<YOUR_VPS_IP>`；在 App 内「设置 → 服务器 → 修改」可改，也可以在浏览器里改（浏览器不显示该入口） |
 | 登录态 | `onPause` 里 `CookieManager.flush()`，否则被系统回收会掉登录 |
 
 ## 目录
@@ -26,7 +26,7 @@ scripts/build-apk.sh         # npm run build → 同步 assets → gradle assemb
 
 ## 下载（已部署到 VPS）
 
-`https://124.221.121.195/app/cilicili-webapp.apk`（自签证书，浏览器会提示不安全，选择继续即可）
+`https://<YOUR_VPS_IP>/app/cilicili-webapp.apk`（自签证书，浏览器会提示不安全，选择继续即可）
 
 APK 放在 VPS 的 `/srv/cilicili-downloads/`，由宿主 Nginx 的 `location /app/` 提供，
 **不进后端镜像**，换版本时直接覆盖文件即可。

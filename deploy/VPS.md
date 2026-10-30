@@ -1,6 +1,6 @@
 # 当前 VPS 后端部署
 
-部署时间：2026-10-25。服务器：`124.221.121.195`。
+部署时间：2026-10-25。服务器：`<YOUR_VPS_IP>`。
 
 ## 2026-10-30 更新：后端全量 + 前端按需加载
 
@@ -24,7 +24,7 @@
   改动前备份到 `/opt/cilicili-backend/downloads/antigravity.conf.bak-*`，`nginx -t` 通过后 reload。
 - APK 放 `/srv/cilicili-downloads/cilicili-webapp.apk`（755 目录 / 644 文件），**不进后端镜像**。
   坑：一开始放在 `/opt/cilicili-backend/downloads/`，该目录是 `drwx------`，Nginx worker 无法穿越 → 403。
-- 下载地址：`https://124.221.121.195/app/cilicili-webapp.apk`
+- 下载地址：`https://<YOUR_VPS_IP>/app/cilicili-webapp.apk`
   （响应 200、7061464 字节、`application/vnd.android.package-archive`）。
 
 ### 封面缓存 + 1.0.1 APK（同日）
@@ -73,7 +73,7 @@
 - 宿主 Nginx：`location /` 由 `return 404` 改为反代 `http://127.0.0.1:8080`（/api 规则不变），已 reload。
 - 部署前备份：`/opt/cilicili-backend/backups/preweb-20261029-020830`（sources.db 快照，23 源）。
 - 部署后校验：HTTPS 首页 200、/api/health 正常、搜索 45 条、首页 douban 带评分/源数、big 封面 200、**源 23 保留、历史 8 条保留**。
-- 访问：`https://124.221.121.195/`（自签证书）。回退：把 current 指回上一个 release 后 compose up -d，并把 nginx `location /` 改回 return 404。
+- 访问：`https://<YOUR_VPS_IP>/`（自签证书）。回退：把 current 指回上一个 release 后 compose up -d，并把 nginx `location /` 改回 return 404。
 
 ---
 

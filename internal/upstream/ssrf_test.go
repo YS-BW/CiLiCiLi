@@ -28,7 +28,7 @@ func TestCheckAddr(t *testing.T) {
 		{addr: "100.64.0.1", blocked: true},
 		{addr: "0.0.0.0", blocked: true, blockedOpen: true},
 		{addr: "192.0.2.1", blocked: true, blockedOpen: true},
-		{addr: "198.18.0.1", blocked: true, blockedOpen: true},
+		{addr: "198.18.0.1", blocked: true},
 		{addr: "198.51.100.1", blocked: true, blockedOpen: true},
 		{addr: "203.0.113.1", blocked: true, blockedOpen: true},
 		{addr: "224.0.0.1", blocked: true, blockedOpen: true},

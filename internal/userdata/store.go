@@ -138,6 +138,34 @@ func (s *Store) History(unfinished bool, limit int) ([]Progress, error) {
 	return truncateProgress(items, limit), nil
 }
 
+// UpdateProgressCover 回填旧历史缺失的封面，不改变播放时间和更新时间。
+func (s *Store) UpdateProgressCover(id, cover string) error {
+	cover = strings.TrimSpace(cover)
+	if cover == "" {
+		return nil
+	}
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(progressBucket)
+		raw := b.Get([]byte(id))
+		if raw == nil {
+			return nil
+		}
+		var p Progress
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil
+		}
+		if strings.TrimSpace(p.Cover) != "" {
+			return nil
+		}
+		p.Cover = cover
+		next, err := json.Marshal(p)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(id), next)
+	})
+}
+
 // isUnfinished 判断一条进度是否适合出现在「继续观看」。
 func isUnfinished(p Progress) bool {
 	if p.Completed {
