@@ -1,7 +1,15 @@
-# CiLiCiLi 后端
+# CiLiCiLi
 
-CiLiCiLi 的服务端：多源聚合搜索、详情解析、流式代理、媒体聚合/刮削、持久缓存、源健康探测与自动发现。
-对外只暴露一套 HTTP API（`/api/*`）；Web / App 客户端不在本仓库内。
+多源聚合影视客户端：**Go 服务端 + React Web 前端**，自建自用。
+
+- 服务端：多源并发聚合搜索、详情解析、流式代理（图片/m3u8/分片/直播）、媒体聚合与 TMDB 刮削、
+  两级持久缓存、源健康熔断与自动发现、SSRF 防护。
+- Web 前端：Netflix 风格布局、流式增量搜索、ArtPlayer + hls.js 播放器、封面统一接口。
+- Android APK 外壳（WebView 容器）**不在本仓库内**。
+
+- API 文档：[docs/API.md](docs/API.md)
+- 前端说明：[docs/web/](docs/web/)
+- 设计/评估：[docs/backend-rewrite-assessment.md](docs/backend-rewrite-assessment.md)
 
 - API 文档：[docs/API.md](docs/API.md)
 - 设计/评估：[docs/backend-rewrite-assessment.md](docs/backend-rewrite-assessment.md)
@@ -61,17 +69,45 @@ curl -s http://127.0.0.1:8080/api/health
 全部走环境变量，参考 [.env.example](.env.example)；`PASSWORD` 必填，其余有默认值。
 `SOURCES_FILE` 首次启动导入默认源，之后以 `sources.db` 为准。
 
+## Web 前端
+
+```bash
+cd web
+npm install
+npm run dev     # 开发，默认 5173，反代 /api 到 8080
+npm run build   # 产物在 web/dist
+```
+
+后端设 `WEB_DIR=/path/to/web/dist` 即可同源托管 SPA（免 Nginx，cookie 鉴权也是同源）。
+
 ## 目录
 
 ```
 cmd/cilici/        程序入口
 internal/          API、搜索、详情、代理、缓存、源管理、媒体聚合、用户数据
+web/               React + TypeScript + Vite 前端
 configs/           默认源配置
-docs/              API 与设计文档
+docs/              API 与设计文档（docs/web/ 为前端与功能方案）
 deploy/            Docker/prebuilt 与部署说明
 data/              运行时数据（gitignore）
 ```
 
-## 合规
+## 致谢
 
-仅供个人学习与自建使用；聚合内容版权归各源站所有，请遵守当地法律法规。
+本项目在下列开源工作的基础上构建：
+
+- [LibreTV](https://github.com/LibreSpark/LibreTV) — 最初的服务端设计参考；本仓库的 Go 实现是重写版本，
+  HLS 错误恢复策略（`web/src/lib/playback-recovery.ts`）思路移植自 LibreTV-Next
+- [ArtPlayer](https://github.com/zhw2590582/ArtPlayer) — 播放器内核
+- [hls.js](https://github.com/video-dev/hls.js) — HLS 播放
+- [MiSans](https://hyperos.mi.com/font) — 界面字体（小米开源，按 SIL OFL 分发）
+- [TMDB](https://www.themoviedb.org/) — 影片元数据与横版剧照（本项目非 TMDB 官方产品）
+
+## 免责声明
+
+仅供个人学习与自建使用。本项目不托管、不存储、不分发任何影视内容，所有内容均来自用户自行配置的
+第三方源站；聚合内容的版权归各源站及权利人所有。请遵守当地法律法规，不要用于任何商业或公开传播用途。
+
+## 许可证
+
+[MIT](LICENSE)
