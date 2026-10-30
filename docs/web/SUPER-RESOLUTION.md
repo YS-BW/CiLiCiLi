@@ -90,8 +90,12 @@ WebGPU / WebGL 里没有、也不会有这个接口。
 
 | | 解决什么 | 代表 |
 | --- | --- | --- |
-| 超分 | 分辨率低、糊 | FSR / Real-ESRGAN |
-| 补帧 | 帧率低、卡顿感 | RIFE / SVP / 电视 MEMC |
+| 超分 | 分辨率低、糊 | FSR 1/2/4、DLSS 2、Real-ESRGAN |
+| 补帧 | 帧率低、卡顿感 | FSR 3 的 Frame Generation、DLSS 3 FG、AMD AFMF、RIFE、SVP、电视 MEMC |
+
+注意命名陷阱：**FSR 3 是「超分 + 插帧」的套件**（超分沿用 FSR 2 算法，另加 Fluid Motion Frames 插帧），
+DLSS 3 同理。而 **FSR 1 / FSR 2 / FSR 4 是纯超分**。
+本方案用的是 **FSR 1.0，只有 EASU + RCAS 两个 pass，不含任何插帧**。
 
 补帧在浏览器里也能做（光流插帧），但代价大得多，且运动场景容易出现鬼影/果冻效应。
 本方案只做超分，补帧单独立项。
