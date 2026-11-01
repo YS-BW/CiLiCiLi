@@ -3,6 +3,8 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
 import { getSources, rememberSources } from '../lib/sourcesCache';
+import { createRoom } from '../lib/watchparty';
+import { saveWatchRoomMeta, type WatchRoomMeta } from './WatchRoom';
 
 // 播放器（ArtPlayer + hls.js，约占一半体积）只在真正要播时下载，其它页面首屏 JS 因此减半。
 const Player = lazy(() => import('../components/Player'));
@@ -20,6 +22,7 @@ export default function Detail() {
   const [playing, setPlaying] = useState(false);
   const [hint, setHint] = useState('');
   const [faved, setFaved] = useState(false);
+  const [creatingWatch, setCreatingWatch] = useState(false);
   const [heroBg, setHeroBg] = useState<{ url: string; wide: boolean } | null>(null);
   const [allSources, setAllSources] = useState<SourceRef[]>([]);
   const [showEps, setShowEps] = useState(false);
@@ -152,6 +155,29 @@ export default function Detail() {
     } catch (e: any) { showHint(e?.message || '操作失败'); }
   }
 
+  async function startWatchTogether() {
+    if (!detail || !line || !episode || creatingWatch) {
+      showHint('请先选择要播放的剧集');
+      return;
+    }
+    setCreatingWatch(true);
+    try {
+      const room = await createRoom('房主');
+      const meta: WatchRoomMeta = {
+        title: detail.videoInfo.title,
+        url: episode.url,
+        episode: epIdx,
+        episodes: line.episodes.map((e, i) => ({ id: e.id, name: e.name, index: i, url: e.url })),
+      };
+      saveWatchRoomMeta(room.roomId, meta);
+      nav(`/watch/${encodeURIComponent(room.roomId)}`, { state: meta });
+    } catch (e: any) {
+      showHint(e?.message || '创建一起看房间失败');
+    } finally {
+      setCreatingWatch(false);
+    }
+  }
+
   if (loading) return <div className="center-fill"><div className="spinner" /><div className="muted">加载详情…</div></div>;
   if (err) return <div className="center-fill"><div className="error-box">{err}</div><button className="btn ghost" onClick={() => nav(-1)}>返回</button></div>;
   if (!detail) return null;
@@ -183,6 +209,9 @@ export default function Detail() {
           <div className="desc">{vi.desc || '暂无简介'}</div>
           <div className="dbtns">
             <button className="btn play" onClick={() => setPlaying(true)}>▶ {episode ? `播放 ${episode.name || `第${episode.index}集`}` : '播放'}</button>
+            <button className="btn ghost" onClick={startWatchTogether} disabled={creatingWatch || !episode}>
+              {creatingWatch ? '创建中…' : '一起看'}
+            </button>
             <button className="btn ghost" onClick={toggleFav}>{faved ? '✓ 已收藏' : '☆ 收藏'}</button>
           </div>
         </div>
