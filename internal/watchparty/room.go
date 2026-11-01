@@ -135,6 +135,11 @@ func (c *client) writeLoop() {
 	}
 }
 
+type closedMessage struct {
+	Type   string `json:"type"`
+	Reason string `json:"reason,omitempty"`
+}
+
 // Room 保存成员、在线连接与权威时间轴。
 type Room struct {
 	ID string
@@ -145,6 +150,7 @@ type Room struct {
 	hostID     string
 	state      State
 	lastActive time.Time
+	closed     bool
 }
 
 func newRoom(id string, now time.Time) *Room {
@@ -293,6 +299,9 @@ func (r *Room) setBuffering(memberID string, buffering bool) {
 func (r *Room) addClient(c *client) (State, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.closed {
+		return r.state, false
+	}
 	m := r.members[c.memberID]
 	if m == nil {
 		return r.state, false
@@ -304,6 +313,78 @@ func (r *Room) addClient(c *client) (State, bool) {
 	m.Online = true
 	r.lastActive = time.Now()
 	return r.state, true
+}
+
+// IsHost 判断成员是否为房主。
+func (r *Room) IsHost(memberID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return memberID != "" && memberID == r.hostID
+}
+
+// HostOnline 返回房主当前是否有在线连接。
+func (r *Room) HostOnline() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.hostOnlineLocked()
+}
+
+func (r *Room) hostOnlineLocked() bool {
+	return r.clients[r.hostID] != nil
+}
+
+// removeMember 移除成员及其连接。返回是否确实移除了成员。
+func (r *Room) removeMember(memberID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.members[memberID] == nil {
+		return false
+	}
+	delete(r.members, memberID)
+	if c := r.clients[memberID]; c != nil {
+		delete(r.clients, memberID)
+		c.close()
+	}
+	r.lastActive = time.Now()
+	return true
+}
+
+// beginDissolve 标记房间已解散并取走全部连接。
+// requireHostOffline 为真时，若房主仍在线则不做任何修改。
+func (r *Room) beginDissolve(requireHostOffline bool) ([]*client, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil, false
+	}
+	if requireHostOffline && r.hostOnlineLocked() {
+		return nil, false
+	}
+	r.closed = true
+	clients := make([]*client, 0, len(r.clients))
+	for _, c := range r.clients {
+		clients = append(clients, c)
+	}
+	r.clients = make(map[string]*client)
+	return clients, true
+}
+
+const closedFlushDelay = 100 * time.Millisecond
+
+// finishDissolve 广播 closed 事件并关闭所有连接。
+func (r *Room) finishDissolve(clients []*client, reason string) {
+	if data, err := json.Marshal(closedMessage{Type: "closed", Reason: reason}); err == nil {
+		for _, c := range clients {
+			c.enqueue(data)
+		}
+	}
+	if len(clients) > 0 {
+		// 给 writeLoop 一点时间把 closed 事件刷出去，再断开连接。
+		time.Sleep(closedFlushDelay)
+	}
+	for _, c := range clients {
+		c.close()
+	}
 }
 
 func (r *Room) removeClient(c *client) {
@@ -337,13 +418,10 @@ func (r *Room) Broadcast(v any) {
 }
 
 func (r *Room) close() {
-	r.mu.Lock()
-	clients := make([]*client, 0, len(r.clients))
-	for _, c := range r.clients {
-		clients = append(clients, c)
+	clients, ok := r.beginDissolve(false)
+	if !ok {
+		return
 	}
-	r.clients = make(map[string]*client)
-	r.mu.Unlock()
 	for _, c := range clients {
 		c.close()
 	}

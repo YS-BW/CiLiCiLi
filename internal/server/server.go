@@ -73,6 +73,7 @@ func New(d Deps) http.Handler {
 	}
 	mux.HandleFunc("POST /api/watch/rooms", guard(watchParty.Create))
 	mux.HandleFunc("POST /api/watch/rooms/{id}/join", watchParty.Join)
+	mux.HandleFunc("POST /api/watch/rooms/{id}/leave", watchParty.Leave)
 	mux.HandleFunc("GET /api/watch/rooms/{id}/ws", watchParty.WS)
 
 	mux.HandleFunc("POST /api/search", guard(d.API.Search))

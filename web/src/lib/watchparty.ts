@@ -116,6 +116,21 @@ export async function joinRoom(roomId: string, name = '观众'): Promise<WatchCr
   return credentials;
 }
 
+export async function leaveRoom(roomId: string): Promise<void> {
+  const stored = loadMemberCredentials(roomId);
+  try {
+    if (!stored) return;
+    await postJSON<{ ok: boolean }>(
+      `/api/watch/rooms/${encodeURIComponent(roomId)}/leave`,
+      { memberId: stored.memberId, token: stored.memberToken },
+    );
+  } catch (err) {
+    if (!(err instanceof WatchPartyError && err.status === 404)) throw err;
+  } finally {
+    clearMemberCredentials(roomId);
+  }
+}
+
 export type WatchCommandOp = 'play' | 'pause' | 'seek' | 'episode';
 
 export interface WatchCommand {
@@ -146,7 +161,17 @@ interface ServerErrorMessage {
   msg: string;
 }
 
-type ServerMessage = ServerStateMessage | ServerMembersMessage | ServerPongMessage | ServerErrorMessage;
+interface ServerClosedMessage {
+  type: 'closed';
+  reason?: string;
+}
+
+type ServerMessage =
+  | ServerStateMessage
+  | ServerMembersMessage
+  | ServerPongMessage
+  | ServerErrorMessage
+  | ServerClosedMessage;
 
 interface ClientMessage {
   type: 'ping' | 'cmd' | 'buffering';
@@ -164,6 +189,7 @@ export interface WatchClientEvents {
   error: string;
   open: void;
   close: { code: number; reason: string; willReconnect: boolean };
+  closed: { reason: string };
 }
 
 type Listener<T> = (payload: T) => void;
@@ -184,6 +210,7 @@ export class WatchPartyClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   private manuallyClosed = false;
+  private closed = false;
   private lastSeq = -1;
   private currentState: WatchState | null = null;
   private outbox: string[] = [];
@@ -262,7 +289,7 @@ export class WatchPartyClient {
   }
 
   private openSocket(): void {
-    if (this.manuallyClosed) return;
+    if (this.manuallyClosed || this.closed) return;
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
@@ -315,10 +342,29 @@ export class WatchPartyClient {
       if (this.socket !== socket) return;
       this.socket = null;
       this.stopPing();
-      const willReconnect = !this.manuallyClosed;
+      const willReconnect = !this.manuallyClosed && !this.closed;
       this.emit('close', { code: event.code, reason: event.reason, willReconnect });
-      if (willReconnect) this.scheduleReconnect();
+      if (willReconnect) {
+        this.scheduleReconnect();
+        void this.checkRoomGone();
+      }
     };
+  }
+
+  private async checkRoomGone(): Promise<void> {
+    try {
+      const query = new URLSearchParams({
+        memberId: this.memberId,
+        token: this.memberToken,
+      });
+      const resp = await fetch(
+        `/api/watch/rooms/${encodeURIComponent(this.roomId)}/ws?${query.toString()}`,
+        { credentials: 'include', cache: 'no-store' },
+      );
+      if (resp.status === 404) this.handleClosed('room_gone');
+    } catch {
+      // 网络错误时继续常规重连。
+    }
   }
 
   private handleMessage(message: ServerMessage): void {
@@ -341,7 +387,24 @@ export class WatchPartyClient {
       case 'error':
         this.emit('error', message.msg || '未知错误');
         return;
+      case 'closed':
+        this.handleClosed(message.reason || '');
+        return;
     }
+  }
+
+  private handleClosed(reason: string): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.manuallyClosed = true;
+    this.clearTimers();
+    clearMemberCredentials(this.roomId);
+    if (this.socket) {
+      const socket = this.socket;
+      this.socket = null;
+      try { socket.close(1000, 'room closed'); } catch { /* ignore */ }
+    }
+    this.emit('closed', { reason });
   }
 
   private handlePong(message: ServerPongMessage): void {
@@ -380,7 +443,7 @@ export class WatchPartyClient {
   }
 
   private scheduleReconnect(): void {
-    if (this.manuallyClosed || this.reconnectTimer !== null) return;
+    if (this.manuallyClosed || this.closed || this.reconnectTimer !== null) return;
     this.reconnectAttempt += 1;
     const base = Math.min(RECONNECT_BASE_MS * 2 ** (this.reconnectAttempt - 1), RECONNECT_MAX_MS);
     const delay = base + Math.floor(Math.random() * base * 0.25);

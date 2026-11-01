@@ -262,7 +262,10 @@ img { display: block; }
 .watch-status { font-size: 12px; color: #ffb020; background: rgba(255,176,32,.12); border: 1px solid rgba(255,176,32,.3);
   border-radius: 20px; padding: 4px 10px; }
 .watch-status.on { color: var(--green); background: rgba(70,211,105,.12); border-color: rgba(70,211,105,.3); }
-.watch-copy { padding: 8px 16px; font-size: 13px; }
+.watch-copy, .watch-leave { padding: 8px 16px; font-size: 13px; }
+.watch-leave { color: #ff8a8a; border-color: rgba(229,9,20,.4); }
+.watch-ended { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.72); color: #fff; font-size: 18px; font-weight: 700; }
 .watch-error { background: rgba(229,9,20,.12); border: 1px solid rgba(229,9,20,.4); color: #ff8a8a;
   padding: 10px 14px; border-radius: 8px; font-size: 13px; }
 .watch-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }

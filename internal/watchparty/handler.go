@@ -71,6 +71,11 @@ type errorMessage struct {
 	Msg  string `json:"msg"`
 }
 
+type leaveRequest struct {
+	MemberID string `json:"memberId"`
+	Token    string `json:"token"`
+}
+
 // Create 处理 POST /api/watch/rooms。
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	name, err := decodeName(r, "房主")
@@ -112,6 +117,36 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Leave 处理 POST /api/watch/rooms/{id}/leave。
+// 房主离开会解散房间，普通成员离开仅移除自己。
+func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
+	room, ok := h.hub.Get(r.PathValue("id"))
+	if !ok {
+		httpx.WriteError(w, http.StatusNotFound, "房间不存在或已过期")
+		return
+	}
+	var body leaveRequest
+	if r.Body != nil {
+		dec := json.NewDecoder(io.LimitReader(r.Body, httpx.MaxJSONBody))
+		if err := dec.Decode(&body); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "请求格式错误")
+			return
+		}
+	}
+	member, ok := room.Authenticate(body.MemberID, body.Token)
+	if !ok {
+		httpx.WriteError(w, http.StatusUnauthorized, "成员凭证无效")
+		return
+	}
+	if member.Host {
+		h.hub.dissolve(room.ID, "host_left")
+	} else if !h.hub.removeGuest(room.ID, member.ID) {
+		httpx.WriteError(w, http.StatusNotFound, "房间不存在或已过期")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // WS 处理 GET /api/watch/rooms/{id}/ws?memberId=&token=。
 func (h *Handler) WS(w http.ResponseWriter, r *http.Request) {
 	room, ok := h.hub.Get(r.PathValue("id"))
@@ -130,19 +165,26 @@ func (h *Handler) WS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := newClient(memberID, conn)
+	go c.writeLoop()
 	state, ok := room.addClient(c)
 	if !ok {
+		c.close()
 		_ = conn.Close(websocket.StatusPolicyViolation, "member not found")
 		return
 	}
+	if room.IsHost(memberID) {
+		h.hub.cancelHostGrace(room.ID)
+	}
 
-	go c.writeLoop()
 	c.enqueueJSON(stateMessage{Type: "state", State: state})
 	room.Broadcast(membersMessage{Type: "members", Members: room.Members()})
 
 	defer func() {
 		room.removeClient(c)
 		c.close()
+		if room.IsHost(memberID) && !room.HostOnline() {
+			h.hub.scheduleHostGrace(room.ID)
+		}
 		room.Broadcast(membersMessage{Type: "members", Members: room.Members()})
 	}()
 

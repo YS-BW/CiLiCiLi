@@ -1,11 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type Artplayer from 'artplayer';
 import {
   WatchPartyClient,
+  WatchPartyError,
   clearMemberCredentials,
   createDriftCorrector,
   joinRoom,
+  leaveRoom,
   loadMemberCredentials,
   type StoredMemberCredentials,
   type WatchMember,
@@ -26,6 +28,7 @@ export interface WatchRoomMeta {
   url?: string;
   episode?: number;
   episodes?: RoomEpisode[];
+  detailPath?: string;
 }
 
 const META_PREFIX = 'watch:meta:';
@@ -49,6 +52,7 @@ function loadRoomMeta(roomId: string, state: unknown): WatchRoomMeta | null {
 export default function WatchRoom() {
   const { roomId = '' } = useParams();
   const loc = useLocation();
+  const navigate = useNavigate();
   const meta = useMemo(() => loadRoomMeta(roomId, loc.state), [roomId, loc.state]);
 
   const [credentials, setCredentials] = useState<StoredMemberCredentials | null>(() => loadMemberCredentials(roomId));
@@ -64,6 +68,8 @@ export default function WatchRoom() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [art, setArt] = useState<Artplayer | null>(null);
+  const [closedNotice, setClosedNotice] = useState('');
+  const [roomGone, setRoomGone] = useState(false);
 
   const clientRef = useRef<WatchPartyClient | null>(null);
   const initialEpisodeSent = useRef(false);
@@ -87,6 +93,10 @@ export default function WatchRoom() {
         if (info.willReconnect) setError('连接中断，正在重连…');
         else setError('连接已断开');
       }),
+      client.on('closed', () => {
+        setConnected(false);
+        setClosedNotice('房主已结束一起看');
+      }),
     ];
     client.connect();
     return () => {
@@ -95,6 +105,14 @@ export default function WatchRoom() {
       if (clientRef.current === client) clientRef.current = null;
     };
   }, [roomId, credentials]);
+
+  useEffect(() => {
+    if (!closedNotice) return;
+    const timer = window.setTimeout(() => {
+      navigate(meta?.detailPath || '/');
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [closedNotice, meta?.detailPath, navigate]);
 
   // 从详情页进入时，房主把当前集同步为房间内容。
   useEffect(() => {
@@ -166,10 +184,26 @@ export default function WatchRoom() {
       setState(joined.state);
       setCredentials({ memberId: joined.memberId, memberToken: joined.memberToken });
     } catch (err) {
+      if (err instanceof WatchPartyError && err.status === 404) {
+        setRoomGone(true);
+        return;
+      }
       setJoinError(err instanceof Error ? err.message : '加入房间失败');
     } finally {
       setJoining(false);
     }
+  }
+
+  async function handleLeave() {
+    if (isHost && !window.confirm('退出将解散房间，所有人都会退出，确定吗？')) return;
+    try {
+      await leaveRoom(roomId);
+    } catch {
+      // 房间可能已不存在，仍然允许本地退出。
+    }
+    clientRef.current?.disconnect();
+    clientRef.current = null;
+    navigate(meta?.detailPath || '/');
   }
 
   function changeIdentity() {
@@ -200,6 +234,18 @@ export default function WatchRoom() {
     const episode = meta?.episodes?.[index];
     if (!episode || !isHost) return;
     clientRef.current?.sendCommand({ op: 'episode', episode: index, url: episode.url, positionMs: 0 });
+  }
+
+  if (roomGone) {
+    return (
+      <div className="watch-join">
+        <div className="watch-join-card">
+          <h1>房间已结束或不存在</h1>
+          <p className="muted">房间 {roomId} 可能已被房主解散。</p>
+          <button className="btn play" onClick={() => navigate('/')}>返回首页</button>
+        </div>
+      </div>
+    );
   }
 
   if (!credentials) {
@@ -235,6 +281,8 @@ export default function WatchRoom() {
 
   return (
     <div className="watch-page">
+      {closedNotice ? <div className="watch-ended">{closedNotice}</div> : null}
+
       <header className="watch-head">
         <div className="watch-head-main">
           <h1 className="watch-title">{title}</h1>
@@ -244,6 +292,7 @@ export default function WatchRoom() {
         <button className="btn ghost watch-copy" onClick={copyShareLink}>
           {copied ? '✓ 已复制' : '复制分享链接'}
         </button>
+        <button className="btn ghost watch-leave" onClick={handleLeave}>退出一起看</button>
       </header>
 
       {error ? <div className="watch-error">{error}</div> : null}
