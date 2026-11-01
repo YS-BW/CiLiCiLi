@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
 import { getSources, rememberSources } from '../lib/sourcesCache';
+import { collectMatchingSources, mergeSources } from '../lib/sourceMatch';
 import { createRoom } from '../lib/watchparty';
 import { saveWatchRoomMeta, type WatchRoomMeta } from './WatchRoom';
 
@@ -31,18 +32,43 @@ export default function Detail() {
   // 同片可切换的采集源：优先用搜索/首页带过来的，否则按标题搜一次补全。
   useEffect(() => {
     if (!detail) return;
-    const title = detail.videoInfo?.title || '';
+    const title = viTitle(detail);
+    const year = detail.videoInfo?.year;
+    const current: SourceRef = {
+      sourceKey,
+      vodId,
+      sourceName: detail.videoInfo?.sourceName || '',
+      name: title,
+      pic: detail.videoInfo?.cover,
+      typeName: detail.videoInfo?.typeName,
+      year,
+      area: detail.videoInfo?.area,
+    };
+    const hasCurrent = (list: SourceRef[]) =>
+      list.some(s => s.sourceKey === sourceKey && s.vodId === vodId);
+
     let cancelled = false;
     const cached = getSources(title);
-    if (cached.length > 1) { setAllSources(cached); return; }
+    // 当前源永远排第一，即使搜索失败或缓存里没有它。
+    const base = mergeSources([current], cached);
+    setAllSources(base);
+
+    if (cached.length > 1) {
+      if (hasCurrent(base)) rememberSources(title, base);
+      return;
+    }
+
     api.search(title, { fast: true }).then(r => {
       if (cancelled) return;
-      const m = r.media && r.media[0];
-      const list = m?.sources?.length ? m.sources : cached;
-      if (list && list.length) { setAllSources(list); rememberSources(title, list); }
-    }).catch(() => { if (!cancelled) setAllSources(cached); });
+      const matched = collectMatchingSources(r, title, year, sourceKey, vodId);
+      const merged = mergeSources([current], cached, matched);
+      setAllSources(merged);
+      if (hasCurrent(merged)) rememberSources(title, merged);
+    }).catch(() => {
+      if (!cancelled) setAllSources(base);
+    });
     return () => { cancelled = true; };
-  }, [detail]);
+  }, [detail, sourceKey, vodId]);
 
   // 详情页大图：预加载 big 封面，按图片朝向决定展示方式（横图才铺满，竖图不拉伸）。
   useEffect(() => {
