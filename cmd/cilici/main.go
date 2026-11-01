@@ -137,6 +137,7 @@ func run() error {
 		TLSHandshakeTimeout:   3 * time.Second,
 		ResponseHeaderTimeout: 5 * time.Second,
 		AllowPrivate:          cfg.LiveAllowPrivate,
+		AllowBenchmarkNet:     cfg.VodAllowBenchmarkNet,
 		Logger:                log,
 	})
 	if err != nil {

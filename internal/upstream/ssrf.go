@@ -12,6 +12,11 @@ import (
 // 逐个校验，拒绝私网/回环/链路本地/保留/CGNAT 地址；AllowPrivate 只放行内网段
 // （直播自建源），云厂商元数据地址永远拒绝。
 
+// benchmarkPrefixes 是 AllowBenchmarkNet 时放行的基准测试网段（仅 IPv4）。
+var benchmarkPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("198.18.0.0/15"),
+}
+
 // alwaysBlocked 是无论 AllowPrivate 如何都拒绝的云元数据地址。
 var alwaysBlocked = []netip.Prefix{
 	netip.MustParsePrefix("169.254.169.254/32"), // AWS/GCP/Azure/OpenStack 元数据
@@ -73,7 +78,7 @@ var blockedPrefixes = []netip.Prefix{
 }
 
 // checkAddr 判断单个 IP 是否允许访问。IPv4-mapped IPv6 先还原为 IPv4 再判断。
-func checkAddr(addr netip.Addr, allowPrivate bool) error {
+func checkAddr(addr netip.Addr, allowPrivate, allowBenchmark bool) error {
 	if !addr.IsValid() {
 		return fmt.Errorf("%w: 无效 IP", ErrBlocked)
 	}
@@ -82,6 +87,11 @@ func checkAddr(addr netip.Addr, allowPrivate bool) error {
 	addr = addr.WithZone("").Unmap()
 	if containsPrefix(alwaysBlocked, addr) {
 		return fmt.Errorf("%w: %s 是云元数据地址", ErrBlocked, addr)
+	}
+	// 先于 AllowPrivate 判断：即使允许内网，这里也只额外放行基准段本身，
+	// 云元数据等 alwaysBlocked 地址在上面已经拒绝。
+	if allowBenchmark && containsPrefix(benchmarkPrefixes, addr) {
+		return nil
 	}
 	if allowPrivate && containsPrefix(privatePrefixes, addr) {
 		return nil
@@ -138,14 +148,14 @@ func parseTarget(rawURL string) (*url.URL, error) {
 
 // resolveAndValidate 解析目标 URL 的地址并逐个校验，返回可用于固定建连的 IP 列表。
 // 只要有一个解析结果被拒绝，整个域名就被拒绝（防止攻击者混入内网地址轮询）。
-func resolveAndValidate(ctx context.Context, lookup lookupFunc, u *url.URL, allowPrivate bool) ([]netip.Addr, error) {
+func resolveAndValidate(ctx context.Context, lookup lookupFunc, u *url.URL, allowPrivate, allowBenchmark bool) ([]netip.Addr, error) {
 	if err := validateTarget(u); err != nil {
 		return nil, err
 	}
 	host := u.Hostname()
 	// 字面量 IP 不做 DNS 解析，直接校验。
 	if addr, err := netip.ParseAddr(host); err == nil {
-		if err := checkAddr(addr, allowPrivate); err != nil {
+		if err := checkAddr(addr, allowPrivate, allowBenchmark); err != nil {
 			return nil, err
 		}
 		return []netip.Addr{addr.Unmap()}, nil
@@ -167,7 +177,7 @@ func resolveAndValidate(ctx context.Context, lookup lookupFunc, u *url.URL, allo
 		if !addr.IsValid() {
 			continue
 		}
-		if err := checkAddr(addr, allowPrivate); err != nil {
+		if err := checkAddr(addr, allowPrivate, allowBenchmark); err != nil {
 			return nil, fmt.Errorf("域名 %q 的解析结果不可用: %w", host, err)
 		}
 		addr = addr.Unmap()

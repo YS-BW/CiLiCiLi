@@ -52,9 +52,10 @@ var sensitiveHeaders = map[string]bool{
 // Client 是 Doer 的实现。所有请求都经过 SSRF 校验，DNS 只解析一次并把结果
 // 固定到本次请求的连接上；重定向默认逐跳复检。
 type Client struct {
-	logger       *slog.Logger
-	userAgent    string
-	allowPrivate bool
+	logger         *slog.Logger
+	userAgent      string
+	allowPrivate   bool
+	allowBenchmark bool
 
 	lookup lookupFunc
 	dialer *net.Dialer
@@ -76,12 +77,13 @@ func New(cfg Config) (Doer, error) {
 	cfg = cfg.withDefaults()
 
 	c := &Client{
-		logger:       cfg.Logger,
-		userAgent:    cfg.UserAgent,
-		allowPrivate: cfg.AllowPrivate,
-		lookup:       defaultLookup,
-		dialer:       &net.Dialer{Timeout: cfg.ConnectTimeout, KeepAlive: 30 * time.Second},
-		retryBase:    defaultRetryBase,
+		logger:         cfg.Logger,
+		userAgent:      cfg.UserAgent,
+		allowPrivate:   cfg.AllowPrivate,
+		allowBenchmark: cfg.AllowBenchmarkNet,
+		lookup:         defaultLookup,
+		dialer:         &net.Dialer{Timeout: cfg.ConnectTimeout, KeepAlive: 30 * time.Second},
+		retryBase:      defaultRetryBase,
 	}
 	// Proxy 显式置空：走环境代理会让连接实际由代理建立，固定 IP 形同虚设。
 	c.transport = &http.Transport{
@@ -307,11 +309,12 @@ func (c *Client) fetchSafe(ctx context.Context, method, rawURL string, opts Opti
 		return nil, "", err
 	}
 	allowPrivate := c.allowPrivate || opts.AllowPrivate
+	allowBenchmark := c.allowBenchmark || opts.AllowBenchmarkNet
 	curMethod := method
 	dropSensitive := false
 	redirects := 0
 	for {
-		resp, err := c.doRequest(ctx, c.safeClient, curMethod, current, opts, allowPrivate, dropSensitive)
+		resp, err := c.doRequest(ctx, c.safeClient, curMethod, current, opts, allowPrivate, allowBenchmark, dropSensitive)
 		if err != nil {
 			return nil, "", err
 		}
@@ -354,7 +357,8 @@ func (c *Client) fetchFollow(ctx context.Context, method, rawURL string, opts Op
 		return nil, "", err
 	}
 	allowPrivate := c.allowPrivate || opts.AllowPrivate
-	resp, err := c.doRequest(ctx, c.followClient, method, target, opts, allowPrivate, false)
+	allowBenchmark := c.allowBenchmark || opts.AllowBenchmarkNet
+	resp, err := c.doRequest(ctx, c.followClient, method, target, opts, allowPrivate, allowBenchmark, false)
 	if err != nil {
 		return nil, "", err
 	}
@@ -373,9 +377,10 @@ func (c *Client) doRequest(
 	target *url.URL,
 	opts Options,
 	allowPrivate bool,
+	allowBenchmark bool,
 	dropSensitive bool,
 ) (*http.Response, error) {
-	addrs, err := resolveAndValidate(ctx, c.lookup, target, allowPrivate)
+	addrs, err := resolveAndValidate(ctx, c.lookup, target, allowPrivate, allowBenchmark)
 	if err != nil {
 		return nil, err
 	}

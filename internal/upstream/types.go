@@ -53,6 +53,8 @@ type Options struct {
 	HeaderTimeout time.Duration
 	// AllowPrivate 放行内网地址（仅直播自建源场景，由部署者显式开启）。
 	AllowPrivate bool
+	// AllowBenchmarkNet 放行 198.18.0.0/15 基准测试段（仅 VOD，元数据仍拒绝）。
+	AllowBenchmarkNet bool
 	// SafeRedirects 为 true 时手动逐跳跟随并逐跳做 SSRF 校验。
 	// 注意零值是 false（标准库自动跟随，不再逐跳校验）；所有调用点必须显式传 true。
 	SafeRedirects bool
@@ -96,6 +98,7 @@ type Config struct {
 	TLSHandshakeTimeout   time.Duration
 	ResponseHeaderTimeout time.Duration
 	AllowPrivate          bool
+	AllowBenchmarkNet     bool
 	Logger                *slog.Logger
 }
 

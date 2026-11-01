@@ -88,7 +88,7 @@ func TestResolveAndValidateEmptyResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTarget: %v", err)
 	}
-	if _, err := resolveAndValidate(context.Background(), lookup.lookup, u, false); err == nil {
+	if _, err := resolveAndValidate(context.Background(), lookup.lookup, u, false, false); err == nil {
 		t.Fatal("空解析结果应返回错误")
 	}
 }
