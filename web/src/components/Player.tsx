@@ -11,6 +11,7 @@ export interface PlayerProps {
   onEnded?: () => void;
   onRequestSwitchSource?: (reason: string) => void;
   onHint?: (text: string) => void;
+  onReady?: (art: Artplayer) => void;
 }
 
 function buildHlsConfig(): Partial<HlsConfig> {
@@ -69,6 +70,8 @@ export default function Player(props: PlayerProps) {
         },
       },
     });
+
+    propsRef.current.onReady?.(art);
 
     // 自动播放：未静音被浏览器策略拦时，退回静音自动播放并提示开启声音
     const ensurePlay = () => {

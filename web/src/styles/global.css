@@ -253,6 +253,54 @@ img { display: block; }
 .nf-hint { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); background: rgba(0,0,0,.8);
   padding: 8px 18px; border-radius: 20px; font-size: 13px; color: #eee; z-index: 35; }
 
+/* ---------- 一起看 ---------- */
+.watch-page { max-width: 1440px; margin: 0 auto; padding: 100px 32px 40px; display: flex; flex-direction: column; gap: 16px; }
+.watch-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.watch-head-main { display: flex; align-items: baseline; gap: 12px; flex: 1; min-width: 0; }
+.watch-title { font-size: 24px; font-weight: 900; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.watch-room-id { color: #888; font-size: 13px; }
+.watch-status { font-size: 12px; color: #ffb020; background: rgba(255,176,32,.12); border: 1px solid rgba(255,176,32,.3);
+  border-radius: 20px; padding: 4px 10px; }
+.watch-status.on { color: var(--green); background: rgba(70,211,105,.12); border-color: rgba(70,211,105,.3); }
+.watch-copy { padding: 8px 16px; font-size: 13px; }
+.watch-error { background: rgba(229,9,20,.12); border: 1px solid rgba(229,9,20,.4); color: #ff8a8a;
+  padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+.watch-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.watch-stage { background: #000; border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; position: relative; }
+.watch-stage .artplayer-host { width: 100%; height: 100%; }
+.watch-empty { height: 100%; display: flex; align-items: center; justify-content: center; color: #888; font-size: 14px; }
+.watch-side { background: var(--panel); border: 1px solid #262626; border-radius: 10px; padding: 16px;
+  display: flex; flex-direction: column; gap: 14px; }
+.watch-section-head { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; font-weight: 700; }
+.watch-section-head .muted { font-weight: 400; font-size: 12px; }
+.watch-members { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.watch-members li { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #999; min-height: 22px; }
+.watch-members li.online { color: #eee; }
+.watch-dot { width: 7px; height: 7px; border-radius: 50%; background: #555; flex: none; }
+.watch-members li.online .watch-dot { background: var(--green); box-shadow: 0 0 6px rgba(70,211,105,.7); }
+.watch-member-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.watch-badge { font-size: 11px; color: #ffcf5a; background: rgba(255,207,90,.14); border-radius: 4px; padding: 2px 6px; }
+.watch-self { font-size: 11px; color: #9aa0ab; border: 1px solid #333; border-radius: 4px; padding: 1px 5px; }
+.watch-field { display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: #bbb; }
+.watch-field input, .watch-field select { width: 100%; background: #0f0f0f; border: 1px solid #333; border-radius: 7px;
+  padding: 10px 12px; color: #fff; font-size: 14px; outline: none; }
+.watch-field input:focus, .watch-field select:focus { border-color: #666; }
+.watch-current-ep { font-size: 13px; color: #bbb; }
+.watch-tip { font-size: 12px; color: #888; line-height: 1.6; border-top: 1px solid #262626; padding-top: 12px; }
+.watch-switch { align-self: flex-start; color: #ff8a8a; font-size: 12px; padding: 4px 0; }
+.watch-switch:hover { color: #ffb3b3; }
+.watch-join { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 100px 20px 40px; }
+.watch-join-card { width: min(420px, 100%); background: var(--panel); border: 1px solid #262626; border-radius: 12px;
+  padding: 26px; display: flex; flex-direction: column; gap: 16px; }
+.watch-join-card h1 { font-size: 24px; font-weight: 900; }
+.watch-join-card p { font-size: 13px; }
+.watch-join-card form { display: flex; flex-direction: column; gap: 14px; }
+.watch-join-card .btn { justify-content: center; }
+@media (max-width: 900px) {
+  .watch-body { grid-template-columns: 1fr; }
+  .watch-page { padding: 88px 16px 80px; }
+}
+
 /* ---------- 响应式（移动/窄屏） ---------- */
 .nav .links a { white-space: nowrap; }
 .brand, .nav-right { flex: none; }
