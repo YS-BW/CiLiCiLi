@@ -7,11 +7,26 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/coder/websocket"
 )
+
+const (
+	maxEpisodeCount    = 2000
+	maxMetaFieldRunes  = 200
+	maxEpisodeNameRune = 200
+	maxEpisodeURLRunes = 4096
+)
+
+// Episode 是房间内的剧集条目，仅保留播放所需的名称与地址。
+type Episode struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
 
 var (
 	// ErrForbidden 表示非房主尝试提交控制命令。
@@ -22,14 +37,19 @@ var (
 
 // State 是房间唯一的权威时间轴状态。
 type State struct {
-	Seq             int64   `json:"seq"`
-	Paused          bool    `json:"paused"`
-	PositionMs      int64   `json:"positionMs"`
-	ServerTimeMs    int64   `json:"serverTimeMs"`
-	Rate            float64 `json:"rate"`
-	Episode         int     `json:"episode"`
-	URL             string  `json:"url"`
-	ContentOffsetMs int64   `json:"contentOffsetMs"`
+	Seq             int64     `json:"seq"`
+	Paused          bool      `json:"paused"`
+	PositionMs      int64     `json:"positionMs"`
+	ServerTimeMs    int64     `json:"serverTimeMs"`
+	Rate            float64   `json:"rate"`
+	Episode         int       `json:"episode"`
+	URL             string    `json:"url"`
+	ContentOffsetMs int64     `json:"contentOffsetMs"`
+	Title           string    `json:"title,omitempty"`
+	SourceKey       string    `json:"sourceKey,omitempty"`
+	VodID           string    `json:"vodId,omitempty"`
+	SourceName      string    `json:"sourceName,omitempty"`
+	Episodes        []Episode `json:"episodes,omitempty"`
 }
 
 // Current 根据服务端时间推算当前播放位置。
@@ -65,11 +85,16 @@ type Member struct {
 
 // Command 是客户端提交的控制命令。
 type Command struct {
-	MemberID   string `json:"memberId,omitempty"`
-	Op         string `json:"op"`
-	PositionMs int64  `json:"positionMs"`
-	Episode    int    `json:"episode"`
-	URL        string `json:"url"`
+	MemberID   string    `json:"memberId,omitempty"`
+	Op         string    `json:"op"`
+	PositionMs int64     `json:"positionMs"`
+	Episode    int       `json:"episode"`
+	URL        string    `json:"url"`
+	Title      string    `json:"title,omitempty"`
+	SourceKey  string    `json:"sourceKey,omitempty"`
+	VodID      string    `json:"vodId,omitempty"`
+	SourceName string    `json:"sourceName,omitempty"`
+	Episodes   []Episode `json:"episodes,omitempty"`
 }
 
 type client struct {
@@ -237,6 +262,21 @@ func (r *Room) Apply(cmd Command) (State, error) {
 			r.state.PositionMs = 0
 		}
 	case "episode":
+		if title := strings.TrimSpace(cmd.Title); title != "" {
+			r.state.Title = truncateRunes(title, maxMetaFieldRunes)
+		}
+		if sourceKey := strings.TrimSpace(cmd.SourceKey); sourceKey != "" {
+			r.state.SourceKey = truncateRunes(sourceKey, maxMetaFieldRunes)
+		}
+		if vodID := strings.TrimSpace(cmd.VodID); vodID != "" {
+			r.state.VodID = truncateRunes(vodID, maxMetaFieldRunes)
+		}
+		if sourceName := strings.TrimSpace(cmd.SourceName); sourceName != "" {
+			r.state.SourceName = truncateRunes(sourceName, maxMetaFieldRunes)
+		}
+		if len(cmd.Episodes) > 0 {
+			r.state.Episodes = sanitizeEpisodes(cmd.Episodes)
+		}
 		r.state.Episode = cmd.Episode
 		r.state.URL = cmd.URL
 		r.state.PositionMs = cmd.PositionMs
@@ -425,4 +465,28 @@ func (r *Room) close() {
 	for _, c := range clients {
 		c.close()
 	}
+}
+
+func truncateRunes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(s) <= max {
+		return s
+	}
+	return string([]rune(s)[:max])
+}
+
+func sanitizeEpisodes(list []Episode) []Episode {
+	if len(list) > maxEpisodeCount {
+		list = list[:maxEpisodeCount]
+	}
+	out := make([]Episode, 0, len(list))
+	for _, ep := range list {
+		out = append(out, Episode{
+			Name: truncateRunes(strings.TrimSpace(ep.Name), maxEpisodeNameRune),
+			URL:  truncateRunes(strings.TrimSpace(ep.URL), maxEpisodeURLRunes),
+		})
+	}
+	return out
 }

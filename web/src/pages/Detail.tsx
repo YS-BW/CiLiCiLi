@@ -169,6 +169,9 @@ export default function Detail() {
         episode: epIdx,
         episodes: line.episodes.map((e, i) => ({ id: e.id, name: e.name, index: i, url: e.url })),
         detailPath: `/play/${encodeURIComponent(sourceKey)}/${encodeURIComponent(vodId)}`,
+        sourceKey,
+        vodId,
+        sourceName: detail.videoInfo.sourceName,
       };
       saveWatchRoomMeta(room.roomId, meta);
       nav(`/watch/${encodeURIComponent(room.roomId)}`, { state: meta });

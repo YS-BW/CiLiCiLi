@@ -41,13 +41,18 @@ type credentialsResponse struct {
 }
 
 type clientMessage struct {
-	Type       string `json:"type"`
-	ClientTs   int64  `json:"clientTs,omitempty"`
-	Op         string `json:"op,omitempty"`
-	PositionMs int64  `json:"positionMs,omitempty"`
-	Episode    int    `json:"episode,omitempty"`
-	URL        string `json:"url,omitempty"`
-	State      bool   `json:"state,omitempty"`
+	Type       string    `json:"type"`
+	ClientTs   int64     `json:"clientTs,omitempty"`
+	Op         string    `json:"op,omitempty"`
+	PositionMs int64     `json:"positionMs,omitempty"`
+	Episode    int       `json:"episode,omitempty"`
+	URL        string    `json:"url,omitempty"`
+	Title      string    `json:"title,omitempty"`
+	SourceKey  string    `json:"sourceKey,omitempty"`
+	VodID      string    `json:"vodId,omitempty"`
+	SourceName string    `json:"sourceName,omitempty"`
+	Episodes   []Episode `json:"episodes,omitempty"`
+	State      bool      `json:"state,omitempty"`
 }
 
 type stateMessage struct {
@@ -209,6 +214,11 @@ func (h *Handler) WS(w http.ResponseWriter, r *http.Request) {
 				PositionMs: msg.PositionMs,
 				Episode:    msg.Episode,
 				URL:        msg.URL,
+				Title:      msg.Title,
+				SourceKey:  msg.SourceKey,
+				VodID:      msg.VodID,
+				SourceName: msg.SourceName,
+				Episodes:   msg.Episodes,
 			})
 			if err != nil {
 				c.enqueueJSON(errorMessage{Type: "error", Msg: err.Error()})

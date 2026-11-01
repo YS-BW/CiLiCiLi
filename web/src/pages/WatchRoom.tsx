@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type Artplayer from 'artplayer';
+import { api } from '../api/client';
+import type { SourceRef } from '../api/types';
+import { getSources, rememberSources } from '../lib/sourcesCache';
 import {
   WatchPartyClient,
   WatchPartyError,
@@ -29,10 +32,24 @@ export interface WatchRoomMeta {
   episode?: number;
   episodes?: RoomEpisode[];
   detailPath?: string;
+  sourceKey?: string;
+  vodId?: string;
+  sourceName?: string;
 }
 
 const META_PREFIX = 'watch:meta:';
 const NAME_KEY = 'watch:displayName';
+
+function dedupeSources(list: SourceRef[]): SourceRef[] {
+  const seen = new Set<string>();
+  const out: SourceRef[] = [];
+  for (const source of list) {
+    if (seen.has(source.sourceKey)) continue;
+    seen.add(source.sourceKey);
+    out.push(source);
+  }
+  return out;
+}
 
 export function saveWatchRoomMeta(roomId: string, meta: WatchRoomMeta): void {
   try { sessionStorage.setItem(META_PREFIX + roomId, JSON.stringify(meta)); } catch { /* ignore */ }
@@ -70,6 +87,10 @@ export default function WatchRoom() {
   const [art, setArt] = useState<Artplayer | null>(null);
   const [closedNotice, setClosedNotice] = useState('');
   const [roomGone, setRoomGone] = useState(false);
+  const [sources, setSources] = useState<SourceRef[]>([]);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [switchingSource, setSwitchingSource] = useState('');
+  const [sourceError, setSourceError] = useState('');
 
   const clientRef = useRef<WatchPartyClient | null>(null);
   const initialEpisodeSent = useRef(false);
@@ -78,6 +99,22 @@ export default function WatchRoom() {
     () => !!credentials && members.some(m => m.id === credentials.memberId && m.host),
     [credentials, members],
   );
+
+  const roomTitle = state?.title || meta?.title || '';
+  const sourceKey = state?.sourceKey || meta?.sourceKey || '';
+  const vodId = state?.vodId || meta?.vodId || '';
+  const sourceName = state?.sourceName || meta?.sourceName || '';
+  const detailPath = sourceKey && vodId
+    ? `/play/${encodeURIComponent(sourceKey)}/${encodeURIComponent(vodId)}`
+    : (meta?.detailPath || '/');
+  const episodes = useMemo<RoomEpisode[]>(() => {
+    const roomEpisodes = state?.episodes;
+    if (roomEpisodes && roomEpisodes.length > 0) {
+      return roomEpisodes.map((episode, i) => ({ id: `state-${i}`, name: episode.name, index: i, url: episode.url }));
+    }
+    return meta?.episodes ?? [];
+  }, [state?.episodes, meta?.episodes]);
+  const currentEpisode = state?.episode ?? meta?.episode ?? 0;
 
   useEffect(() => {
     if (!credentials) return;
@@ -109,10 +146,10 @@ export default function WatchRoom() {
   useEffect(() => {
     if (!closedNotice) return;
     const timer = window.setTimeout(() => {
-      navigate(meta?.detailPath || '/');
+      navigate(detailPath);
     }, 2000);
     return () => window.clearTimeout(timer);
-  }, [closedNotice, meta?.detailPath, navigate]);
+  }, [closedNotice, detailPath, navigate]);
 
   // 从详情页进入时，房主把当前集同步为房间内容。
   useEffect(() => {
@@ -124,9 +161,46 @@ export default function WatchRoom() {
       episode: meta.episode ?? state?.episode ?? 0,
       url: meta.url,
       positionMs: 0,
+      title: meta.title,
+      sourceKey: meta.sourceKey,
+      vodId: meta.vodId,
+      sourceName: meta.sourceName,
+      episodes: (meta.episodes ?? []).map(episode => ({ name: episode.name, url: episode.url })),
     });
     initialEpisodeSent.current = true;
   }, [isHost, meta, state?.url, state?.episode]);
+
+  // 房主查找同片其它采集源，供房间内换源；观众只看当前片源。
+  useEffect(() => {
+    if (!isHost || !roomTitle) {
+      setSources([]);
+      return;
+    }
+    let cancelled = false;
+    const cached = getSources(roomTitle);
+    if (cached.length > 0) {
+      setSources(dedupeSources(cached));
+      return;
+    }
+    setSourcesLoading(true);
+    api.search(roomTitle, { fast: true })
+      .then(result => {
+        if (cancelled) return;
+        const media = result.media ?? [];
+        const exact = media.find(item => (item.title || '').trim() === roomTitle.trim());
+        const chosen = exact || media[0];
+        const list = chosen?.sources ?? [];
+        if (list.length > 0) rememberSources(roomTitle, list);
+        setSources(dedupeSources(list));
+      })
+      .catch(() => {
+        if (!cancelled) setSources([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSourcesLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [isHost, roomTitle]);
 
   // 房主的手动播放/暂停/拖动会广播给服务器。
   useEffect(() => {
@@ -166,11 +240,11 @@ export default function WatchRoom() {
   }, [isHost, art]);
 
   useEffect(() => {
-    if (!meta?.title) return;
+    if (!roomTitle) return;
     const prev = document.title;
-    document.title = `${meta.title} · 一起看`;
+    document.title = `${roomTitle} · 一起看`;
     return () => { document.title = prev; };
-  }, [meta?.title]);
+  }, [roomTitle]);
 
   async function submitJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -203,7 +277,7 @@ export default function WatchRoom() {
     }
     clientRef.current?.disconnect();
     clientRef.current = null;
-    navigate(meta?.detailPath || '/');
+    navigate(detailPath);
   }
 
   function changeIdentity() {
@@ -231,9 +305,42 @@ export default function WatchRoom() {
   }
 
   function changeEpisode(index: number) {
-    const episode = meta?.episodes?.[index];
+    const episode = episodes[index];
     if (!episode || !isHost) return;
     clientRef.current?.sendCommand({ op: 'episode', episode: index, url: episode.url, positionMs: 0 });
+  }
+
+  async function switchSource(source: SourceRef) {
+    if (!isHost || source.sourceKey === sourceKey) return;
+    setSourceError('');
+    setSwitchingSource(source.sourceKey);
+    try {
+      const detail = await api.detail(source.sourceKey, source.vodId);
+      const line = detail.playLines[0];
+      if (!line || line.episodes.length === 0) {
+        setSourceError('该片源没有可播放的剧集');
+        return;
+      }
+      const nextEpisodes = line.episodes;
+      const index = Math.max(0, Math.min(currentEpisode, nextEpisodes.length - 1));
+      const episode = nextEpisodes[index];
+      const positionMs = Math.max(0, Math.round((art?.currentTime ?? 0) * 1000));
+      clientRef.current?.sendCommand({
+        op: 'episode',
+        episode: index,
+        url: episode.url,
+        positionMs,
+        title: roomTitle,
+        sourceKey: source.sourceKey,
+        vodId: source.vodId,
+        sourceName: source.sourceName,
+        episodes: nextEpisodes.map(ep => ({ name: ep.name, url: ep.url })),
+      });
+    } catch (err) {
+      setSourceError(err instanceof Error ? err.message : '切换片源失败');
+    } finally {
+      setSwitchingSource('');
+    }
   }
 
   if (roomGone) {
@@ -275,9 +382,11 @@ export default function WatchRoom() {
     );
   }
 
-  const episodes = meta?.episodes ?? [];
-  const currentEpisode = state?.episode ?? meta?.episode ?? 0;
-  const title = meta?.title || '一起看';
+  const sourceOptions = dedupeSources(sources);
+  if (sourceKey && !sourceOptions.some(source => source.sourceKey === sourceKey)) {
+    sourceOptions.unshift({ sourceKey, sourceName, vodId, name: roomTitle });
+  }
+  const title = roomTitle || '一起看';
 
   return (
     <div className="watch-page">
@@ -345,6 +454,35 @@ export default function WatchRoom() {
               当前：{episodes[currentEpisode]?.name || `第${currentEpisode + 1}集`}
             </div>
           ) : null}
+
+          <div className="watch-field watch-sources">
+            <span>片源</span>
+            {isHost ? (
+              <>
+                <div className="watch-source-chips">
+                  {sourceOptions.map(source => {
+                    const current = source.sourceKey === sourceKey;
+                    return (
+                      <button
+                        key={source.sourceKey}
+                        type="button"
+                        className={`watch-source-chip${current ? ' active' : ''}`}
+                        onClick={() => { if (!current) void switchSource(source); }}
+                        disabled={current || switchingSource !== ''}
+                      >
+                        {source.sourceName || source.sourceKey}
+                      </button>
+                    );
+                  })}
+                  {sourcesLoading ? <span className="muted">正在查找片源…</span> : null}
+                  {!sourcesLoading && sourceOptions.length === 0 ? <span className="muted">暂无其它片源</span> : null}
+                </div>
+                {sourceError ? <div className="watch-source-error">{sourceError}</div> : null}
+              </>
+            ) : (
+              <div className="watch-current-source muted">{sourceName || '未知片源'}</div>
+            )}
+          </div>
 
           <div className="watch-tip">
             {isHost

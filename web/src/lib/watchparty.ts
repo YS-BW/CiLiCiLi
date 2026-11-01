@@ -1,3 +1,8 @@
+export interface WatchEpisode {
+  name: string;
+  url: string;
+}
+
 export interface WatchState {
   seq: number;
   paused: boolean;
@@ -7,6 +12,11 @@ export interface WatchState {
   episode: number;
   url: string;
   contentOffsetMs: number;
+  title?: string;
+  sourceKey?: string;
+  vodId?: string;
+  sourceName?: string;
+  episodes?: WatchEpisode[];
 }
 
 export interface WatchMember {
@@ -138,6 +148,11 @@ export interface WatchCommand {
   positionMs?: number;
   episode?: number;
   url?: string;
+  title?: string;
+  sourceKey?: string;
+  vodId?: string;
+  sourceName?: string;
+  episodes?: WatchEpisode[];
 }
 
 interface ServerStateMessage {
@@ -180,6 +195,11 @@ interface ClientMessage {
   positionMs?: number;
   episode?: number;
   url?: string;
+  title?: string;
+  sourceKey?: string;
+  vodId?: string;
+  sourceName?: string;
+  episodes?: WatchEpisode[];
   state?: boolean;
 }
 
@@ -275,13 +295,19 @@ export class WatchPartyClient {
   }
 
   sendCommand(command: WatchCommand): void {
-    this.send({
+    const message: ClientMessage = {
       type: 'cmd',
       op: command.op,
       positionMs: command.positionMs ?? 0,
       episode: command.episode ?? 0,
       url: command.url ?? '',
-    });
+    };
+    if (command.title !== undefined) message.title = command.title;
+    if (command.sourceKey !== undefined) message.sourceKey = command.sourceKey;
+    if (command.vodId !== undefined) message.vodId = command.vodId;
+    if (command.sourceName !== undefined) message.sourceName = command.sourceName;
+    if (command.episodes !== undefined) message.episodes = command.episodes;
+    this.send(message);
   }
 
   sendBuffering(buffering: boolean): void {
@@ -361,7 +387,7 @@ export class WatchPartyClient {
         `/api/watch/rooms/${encodeURIComponent(this.roomId)}/ws?${query.toString()}`,
         { credentials: 'include', cache: 'no-store' },
       );
-      if (resp.status === 404) this.handleClosed('room_gone');
+      if (resp.status === 404 || resp.status === 401) this.handleClosed('room_gone');
     } catch {
       // 网络错误时继续常规重连。
     }

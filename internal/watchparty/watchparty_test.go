@@ -103,6 +103,81 @@ func TestWatchPartyTwoClients(t *testing.T) {
 	}
 }
 
+func TestEpisodeMetaVisibleToGuestAndJoinResponse(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	host := createRoom(t, ts.URL, "房主")
+	guest := joinRoom(t, ts.URL, host.RoomID, "观众")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	hostConn := dial(t, ctx, ts.URL, host)
+	defer hostConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, hostConn, "state")
+	readUntilType(t, ctx, hostConn, "members")
+
+	guestConn := dial(t, ctx, ts.URL, guest)
+	defer guestConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, guestConn, "state")
+	readUntilType(t, ctx, guestConn, "members")
+
+	writeJSON(t, ctx, hostConn, map[string]any{
+		"type":       "cmd",
+		"op":         "episode",
+		"episode":    1,
+		"url":        "https://cdn.example.com/ep2.m3u8",
+		"positionMs": 12000,
+		"title":      "示例剧集",
+		"sourceKey":  "src-a",
+		"vodId":      "vod-1",
+		"sourceName": "线路甲",
+		"episodes": []map[string]string{
+			{"name": "第1集", "url": "https://cdn.example.com/ep1.m3u8"},
+			{"name": "第2集", "url": "https://cdn.example.com/ep2.m3u8"},
+		},
+	})
+
+	hostState := readState(t, ctx, hostConn)
+	guestState := readState(t, ctx, guestConn)
+	for name, state := range map[string]State{"host": hostState, "guest": guestState} {
+		if state.Title != "示例剧集" || state.SourceKey != "src-a" || state.VodID != "vod-1" || state.SourceName != "线路甲" {
+			t.Fatalf("%s meta state = %+v", name, state)
+		}
+		if state.Episode != 1 || state.URL != "https://cdn.example.com/ep2.m3u8" || state.PositionMs != 12000 {
+			t.Fatalf("%s episode state = %+v", name, state)
+		}
+		if len(state.Episodes) != 2 || state.Episodes[1].Name != "第2集" || state.Episodes[1].URL != "https://cdn.example.com/ep2.m3u8" {
+			t.Fatalf("%s episodes = %+v", name, state.Episodes)
+		}
+	}
+
+	late := joinRoom(t, ts.URL, host.RoomID, "后来的人")
+	if late.State.Title != "示例剧集" || late.State.SourceKey != "src-a" || late.State.VodID != "vod-1" {
+		t.Fatalf("join response meta = %+v", late.State)
+	}
+	if late.State.SourceName != "线路甲" || late.State.Episode != 1 || late.State.URL != "https://cdn.example.com/ep2.m3u8" {
+		t.Fatalf("join response episode = %+v", late.State)
+	}
+	if len(late.State.Episodes) != 2 || late.State.Episodes[0].Name != "第1集" {
+		t.Fatalf("join response episodes = %+v", late.State.Episodes)
+	}
+
+	// 后续不带 meta 的选集命令应保留已存储的元信息。
+	writeJSON(t, ctx, hostConn, map[string]any{
+		"type":    "cmd",
+		"op":      "episode",
+		"episode": 0,
+		"url":     "https://cdn.example.com/ep1.m3u8",
+	})
+	hostState = readState(t, ctx, hostConn)
+	if hostState.Title != "示例剧集" || hostState.SourceKey != "src-a" || len(hostState.Episodes) != 2 {
+		t.Fatalf("meta should be preserved: %+v", hostState)
+	}
+}
+
 func TestHostLeaveDissolvesRoom(t *testing.T) {
 	hub := NewHubWithOptions(time.Hour, time.Hour)
 	t.Cleanup(hub.Close)
