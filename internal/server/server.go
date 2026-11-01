@@ -15,14 +15,16 @@ import (
 	"cilicili/internal/auth"
 	"cilicili/internal/config"
 	"cilicili/internal/httpx"
+	"cilicili/internal/watchparty"
 )
 
 // Deps 是 Server 的依赖。
 type Deps struct {
-	API  *api.API
-	Cfg  *config.Config
-	Log  *slog.Logger
-	Auth *auth.Manager
+	API        *api.API
+	Cfg        *config.Config
+	Log        *slog.Logger
+	Auth       *auth.Manager
+	WatchParty *watchparty.Handler
 }
 
 // New 返回完整的 HTTP handler。
@@ -63,6 +65,16 @@ func New(d Deps) http.Handler {
 
 	// 需要登录的接口
 	guard := func(h http.HandlerFunc) http.HandlerFunc { return requireAuth(d.Auth, h) }
+
+	// 一起看：建房需要登录，加入房间与 WebSocket 用成员 token 自鉴权。
+	watchParty := d.WatchParty
+	if watchParty == nil {
+		watchParty = watchparty.NewHandler(watchparty.NewHub())
+	}
+	mux.HandleFunc("POST /api/watch/rooms", guard(watchParty.Create))
+	mux.HandleFunc("POST /api/watch/rooms/{id}/join", watchParty.Join)
+	mux.HandleFunc("GET /api/watch/rooms/{id}/ws", watchParty.WS)
+
 	mux.HandleFunc("POST /api/search", guard(d.API.Search))
 	mux.HandleFunc("GET /api/detail", guard(d.API.Detail))
 	mux.HandleFunc("GET /api/sources", guard(d.API.Sources))
