@@ -12,6 +12,8 @@ import {
   joinRoom,
   leaveRoom,
   loadMemberCredentials,
+  loadNickname,
+  saveNickname,
   type StoredMemberCredentials,
   type WatchMember,
   type WatchState,
@@ -38,7 +40,6 @@ export interface WatchRoomMeta {
 }
 
 const META_PREFIX = 'watch:meta:';
-const NAME_KEY = 'watch:displayName';
 
 function dedupeSources(list: SourceRef[]): SourceRef[] {
   const seen = new Set<string>();
@@ -73,9 +74,7 @@ export default function WatchRoom() {
   const meta = useMemo(() => loadRoomMeta(roomId, loc.state), [roomId, loc.state]);
 
   const [credentials, setCredentials] = useState<StoredMemberCredentials | null>(() => loadMemberCredentials(roomId));
-  const [name, setName] = useState(() => {
-    try { return localStorage.getItem(NAME_KEY) || ''; } catch { return ''; }
-  });
+  const [name, setName] = useState(() => loadNickname());
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
 
@@ -254,9 +253,9 @@ export default function WatchRoom() {
     setJoinError('');
     try {
       const joined = await joinRoom(roomId, displayName);
-      try { localStorage.setItem(NAME_KEY, displayName); } catch { /* ignore */ }
+      saveNickname(displayName);
       setState(joined.state);
-      setCredentials({ memberId: joined.memberId, memberToken: joined.memberToken });
+      setCredentials({ memberId: joined.memberId, memberToken: joined.memberToken, name: joined.name });
     } catch (err) {
       if (err instanceof WatchPartyError && err.status === 404) {
         setRoomGone(true);
@@ -367,8 +366,8 @@ export default function WatchRoom() {
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="输入显示名称"
-                maxLength={24}
+                placeholder="输入昵称（最多 16 个字符）"
+                maxLength={16}
                 autoFocus
               />
             </label>
@@ -387,6 +386,9 @@ export default function WatchRoom() {
     sourceOptions.unshift({ sourceKey, sourceName, vodId, name: roomTitle });
   }
   const title = roomTitle || '一起看';
+  const onlineCount = members.filter(member => member.online).length;
+  const selfMember = members.find(member => member.id === credentials.memberId);
+  const ownNickname = selfMember?.name || credentials.name || name;
 
   return (
     <div className="watch-page">
@@ -396,6 +398,7 @@ export default function WatchRoom() {
         <div className="watch-head-main">
           <h1 className="watch-title">{title}</h1>
           <span className="watch-room-id">房间 {roomId}</span>
+          <span className="watch-own-name">你的昵称：{ownNickname || '—'}</span>
         </div>
         <span className={`watch-status${connected ? ' on' : ''}`}>{connected ? '已连接' : '连接中…'}</span>
         <button className="btn ghost watch-copy" onClick={copyShareLink}>
@@ -422,19 +425,26 @@ export default function WatchRoom() {
         </div>
 
         <aside className="watch-side">
-          <div className="watch-section-head">
-            <span>成员</span>
-            <span className="muted">{members.filter(m => m.online).length} 在线 / {members.length}</span>
+          <div className="watch-section-head watch-members-head">
+            <span>成员 ({onlineCount}/{members.length})</span>
+            <span className="watch-own-name muted">你的昵称：{ownNickname || '—'}</span>
           </div>
           <ul className="watch-members">
-            {members.map(member => (
-              <li key={member.id} className={member.online ? 'online' : ''}>
-                <span className="watch-dot" />
-                <span className="watch-member-name">{member.name}</span>
-                {member.host ? <span className="watch-badge">房主</span> : null}
-                {member.id === credentials.memberId ? <span className="watch-self">我</span> : null}
-              </li>
-            ))}
+            {members.map(member => {
+              const self = member.id === credentials.memberId;
+              return (
+                <li
+                  key={member.id}
+                  className={`${member.online ? 'online' : 'offline'}${self ? ' self' : ''}`}
+                >
+                  <span className="watch-dot" />
+                  <span className="watch-member-name">{member.name}</span>
+                  {member.host ? <span className="watch-badge">房主</span> : null}
+                  {member.online ? null : <span className="watch-offline">离线</span>}
+                  {self ? <span className="watch-self">我</span> : null}
+                </li>
+              );
+            })}
             {members.length === 0 ? <li className="muted">正在获取成员…</li> : null}
           </ul>
 

@@ -24,18 +24,21 @@ export interface WatchMember {
   name: string;
   host: boolean;
   online: boolean;
+  joinedAt?: number;
 }
 
 export interface WatchCredentials {
   roomId: string;
   memberId: string;
   memberToken: string;
+  name?: string;
   state: WatchState;
 }
 
 export interface StoredMemberCredentials {
   memberId: string;
   memberToken: string;
+  name?: string;
 }
 
 export class WatchPartyError extends Error {
@@ -49,17 +52,47 @@ export class WatchPartyError extends Error {
 }
 
 const STORAGE_PREFIX = 'wt:';
+const NICKNAME_KEY = 'wt:nickname';
+const LEGACY_NICKNAME_KEY = 'watch:displayName';
 
 function storageKey(roomId: string): string {
   return STORAGE_PREFIX + roomId;
 }
 
+export function loadNickname(): string {
+  try {
+    const saved = localStorage.getItem(NICKNAME_KEY);
+    if (saved?.trim()) return saved.trim();
+    const legacy = localStorage.getItem(LEGACY_NICKNAME_KEY);
+    if (legacy?.trim()) {
+      const migrated = legacy.trim();
+      localStorage.setItem(NICKNAME_KEY, migrated);
+      localStorage.removeItem(LEGACY_NICKNAME_KEY);
+      return migrated;
+    }
+  } catch {
+    // localStorage 不可用时按未保存处理。
+  }
+  return '';
+}
+
+export function saveNickname(name: string): void {
+  try {
+    const trimmed = name.trim();
+    if (trimmed) localStorage.setItem(NICKNAME_KEY, trimmed);
+  } catch {
+    // ignore
+  }
+}
+
 export function saveMemberCredentials(roomId: string, credentials: StoredMemberCredentials): void {
   try {
-    localStorage.setItem(storageKey(roomId), JSON.stringify({
+    const stored: StoredMemberCredentials = {
       memberId: credentials.memberId,
       memberToken: credentials.memberToken,
-    }));
+    };
+    if (credentials.name) stored.name = credentials.name;
+    localStorage.setItem(storageKey(roomId), JSON.stringify(stored));
   } catch {
     // localStorage 不可用时保持内存态即可。
   }
@@ -71,7 +104,11 @@ export function loadMemberCredentials(roomId: string): StoredMemberCredentials |
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<StoredMemberCredentials>;
     if (typeof parsed.memberId !== 'string' || typeof parsed.memberToken !== 'string') return null;
-    return { memberId: parsed.memberId, memberToken: parsed.memberToken };
+    return {
+      memberId: parsed.memberId,
+      memberToken: parsed.memberToken,
+      name: typeof parsed.name === 'string' ? parsed.name : undefined,
+    };
   } catch {
     return null;
   }
@@ -111,13 +148,13 @@ async function postJSON<T>(path: string, body: unknown, authToken?: string): Pro
   return JSON.parse(text) as T;
 }
 
-export async function createRoom(name = '房主', authToken?: string): Promise<WatchCredentials> {
+export async function createRoom(name: string, authToken?: string): Promise<WatchCredentials> {
   const credentials = await postJSON<WatchCredentials>('/api/watch/rooms', { name }, authToken);
   saveMemberCredentials(credentials.roomId, credentials);
   return credentials;
 }
 
-export async function joinRoom(roomId: string, name = '观众'): Promise<WatchCredentials> {
+export async function joinRoom(roomId: string, name: string): Promise<WatchCredentials> {
   const credentials = await postJSON<WatchCredentials>(
     `/api/watch/rooms/${encodeURIComponent(roomId)}/join`,
     { name },

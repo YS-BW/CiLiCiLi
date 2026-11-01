@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -16,7 +16,8 @@ import (
 
 // Handler 提供一起看的 HTTP / WebSocket 接口。
 type Handler struct {
-	hub *Hub
+	hub     *Hub
+	limiter *rateLimiter
 }
 
 // NewHandler 创建 Handler。hub 为空时使用默认 Hub。
@@ -24,11 +25,29 @@ func NewHandler(hub *Hub) *Handler {
 	if hub == nil {
 		hub = NewHub()
 	}
-	return &Handler{hub: hub}
+	return &Handler{
+		hub:     hub,
+		limiter: newRateLimiter(DefaultRateLimit, DefaultRateWindow),
+	}
 }
 
 // New 是 NewHandler 的简写。
 func New(hub *Hub) *Handler { return NewHandler(hub) }
+
+// SetRateLimit 调整 POST 接口的限流参数；limit <= 0 表示禁用限流。
+// 建议在开始处理请求前调用。
+func (h *Handler) SetRateLimit(limit int, window time.Duration) {
+	if h.limiter != nil {
+		h.limiter.close()
+		h.limiter = nil
+	}
+	if limit > 0 {
+		h.limiter = newRateLimiter(limit, window)
+	}
+}
+
+// DisableRateLimit 关闭限流，主要用于测试。
+func (h *Handler) DisableRateLimit() { h.SetRateLimit(0, 0) }
 
 // Hub 返回底层 Hub。
 func (h *Handler) Hub() *Hub { return h.hub }
@@ -37,6 +56,7 @@ type credentialsResponse struct {
 	RoomID      string `json:"roomId"`
 	MemberID    string `json:"memberId"`
 	MemberToken string `json:"memberToken"`
+	Name        string `json:"name"`
 	State       State  `json:"state"`
 }
 
@@ -83,8 +103,16 @@ type leaveRequest struct {
 
 // Create 处理 POST /api/watch/rooms。
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	name, err := decodeName(r, "房主")
+	if !h.allow(r, "create") {
+		httpx.WriteError(w, http.StatusTooManyRequests, "操作太频繁，请稍后再试")
+		return
+	}
+	name, err := decodeName(r)
 	if err != nil {
+		if errors.Is(err, errNameRequired) {
+			httpx.WriteError(w, http.StatusBadRequest, "请输入昵称")
+			return
+		}
 		httpx.WriteError(w, http.StatusBadRequest, "请求格式错误")
 		return
 	}
@@ -97,14 +125,23 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		RoomID:      room.ID,
 		MemberID:    member.ID,
 		MemberToken: token,
+		Name:        member.Name,
 		State:       room.State(),
 	})
 }
 
 // Join 处理 POST /api/watch/rooms/{id}/join。
 func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
-	name, err := decodeName(r, "观众")
+	if !h.allow(r, "join") {
+		httpx.WriteError(w, http.StatusTooManyRequests, "操作太频繁，请稍后再试")
+		return
+	}
+	name, err := decodeName(r)
 	if err != nil {
+		if errors.Is(err, errNameRequired) {
+			httpx.WriteError(w, http.StatusBadRequest, "请输入昵称")
+			return
+		}
 		httpx.WriteError(w, http.StatusBadRequest, "请求格式错误")
 		return
 	}
@@ -118,6 +155,7 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 		RoomID:      room.ID,
 		MemberID:    member.ID,
 		MemberToken: token,
+		Name:        member.Name,
 		State:       room.State(),
 	})
 }
@@ -125,6 +163,10 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 // Leave 处理 POST /api/watch/rooms/{id}/leave。
 // 房主离开会解散房间，普通成员离开仅移除自己。
 func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
+	if !h.allow(r, "leave") {
+		httpx.WriteError(w, http.StatusTooManyRequests, "操作太频繁，请稍后再试")
+		return
+	}
 	room, ok := h.hub.Get(r.PathValue("id"))
 	if !ok {
 		httpx.WriteError(w, http.StatusNotFound, "房间不存在或已过期")
@@ -233,9 +275,11 @@ func (h *Handler) WS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func decodeName(r *http.Request, fallback string) (string, error) {
+var errNameRequired = errors.New("请输入昵称")
+
+func decodeName(r *http.Request) (string, error) {
 	if r.Body == nil {
-		return fallback, nil
+		return "", errNameRequired
 	}
 	var body struct {
 		Name string `json:"name"`
@@ -243,13 +287,28 @@ func decodeName(r *http.Request, fallback string) (string, error) {
 	dec := json.NewDecoder(io.LimitReader(r.Body, httpx.MaxJSONBody))
 	if err := dec.Decode(&body); err != nil {
 		if errors.Is(err, io.EOF) {
-			return fallback, nil
+			return "", errNameRequired
 		}
 		return "", err
 	}
-	name := strings.TrimSpace(body.Name)
+	name := sanitizeName(body.Name)
 	if name == "" {
-		name = fallback
+		return "", errNameRequired
 	}
 	return name, nil
+}
+
+func (h *Handler) allow(r *http.Request, kind string) bool {
+	if h.limiter == nil {
+		return true
+	}
+	return h.limiter.allow(kind + "|" + remoteIP(r))
+}
+
+func remoteIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }

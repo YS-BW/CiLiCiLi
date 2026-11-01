@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
 import { getSources, rememberSources } from '../lib/sourcesCache';
 import { collectMatchingSources, mergeSources, searchKeywords } from '../lib/sourceMatch';
-import { createRoom } from '../lib/watchparty';
+import { createRoom, loadNickname, saveNickname } from '../lib/watchparty';
 import { saveWatchRoomMeta, type WatchRoomMeta } from './WatchRoom';
 
 // 播放器（ArtPlayer + hls.js，约占一半体积）只在真正要播时下载，其它页面首屏 JS 因此减半。
@@ -24,10 +24,13 @@ export default function Detail() {
   const [hint, setHint] = useState('');
   const [faved, setFaved] = useState(false);
   const [creatingWatch, setCreatingWatch] = useState(false);
+  const [nickname, setNickname] = useState(() => loadNickname());
+  const [nicknameOpen, setNicknameOpen] = useState(false);
   const [heroBg, setHeroBg] = useState<{ url: string; wide: boolean } | null>(null);
   const [allSources, setAllSources] = useState<SourceRef[]>([]);
   const [showEps, setShowEps] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nicknameInputRef = useRef<HTMLInputElement | null>(null);
 
   // 同片可切换的采集源：优先用搜索/首页带过来的，否则按标题搜一次补全。
   useEffect(() => {
@@ -144,6 +147,12 @@ export default function Detail() {
     hintTimer.current = setTimeout(() => setHint(''), 2800);
   }
 
+  useEffect(() => {
+    if (!nicknameOpen) return;
+    const timer = window.setTimeout(() => nicknameInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [nicknameOpen]);
+
   async function restorePosition(): Promise<number> {
     try {
       const hist = await api.history(true, 100);
@@ -189,14 +198,29 @@ export default function Detail() {
     } catch (e: any) { showHint(e?.message || '操作失败'); }
   }
 
-  async function startWatchTogether() {
+  function startWatchTogether() {
     if (!detail || !line || !episode || creatingWatch) {
       showHint('请先选择要播放的剧集');
       return;
     }
+    setNickname(loadNickname());
+    setNicknameOpen(true);
+  }
+
+  async function submitWatchTogether(e: React.FormEvent) {
+    e.preventDefault();
+    if (!detail || !line || !episode || creatingWatch) return;
+    const finalName = nickname.trim();
+    if (!finalName) {
+      showHint('请输入昵称');
+      return;
+    }
+    saveNickname(finalName);
+    setNickname(finalName);
+    setNicknameOpen(false);
     setCreatingWatch(true);
     try {
-      const room = await createRoom('房主');
+      const room = await createRoom(finalName);
       const meta: WatchRoomMeta = {
         title: detail.videoInfo.title,
         url: episode.url,
@@ -346,6 +370,29 @@ export default function Detail() {
           {hint ? <div className="nf-hint">{hint}</div> : null}
         </div>
       )}
+
+      {nicknameOpen ? (
+        <div className="nickname-modal" role="dialog" aria-modal="true" aria-label="输入昵称">
+          <form className="nickname-modal-card" onSubmit={submitWatchTogether}>
+            <h3>一起看昵称</h3>
+            <p className="muted">昵称会显示给房间里的其他成员，最多 16 个字符。</p>
+            <input
+              ref={nicknameInputRef}
+              value={nickname}
+              onChange={e => setNickname(e.target.value)}
+              placeholder="请输入昵称"
+              maxLength={16}
+              required
+            />
+            <div className="nickname-modal-actions">
+              <button className="btn ghost" type="button" onClick={() => setNicknameOpen(false)} disabled={creatingWatch}>取消</button>
+              <button className="btn play" type="submit" disabled={creatingWatch || !nickname.trim()}>
+                {creatingWatch ? '创建中…' : '开始一起看'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       {hint && !playing ? (
         <div style={{ position: 'fixed', left: '50%', bottom: 30, transform: 'translateX(-50%)', background: 'rgba(0,0,0,.85)', padding: '10px 20px', borderRadius: 20, fontSize: 13, zIndex: 100 }}>{hint}</div>

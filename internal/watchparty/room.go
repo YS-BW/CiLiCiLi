@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/coder/websocket"
@@ -20,6 +22,7 @@ const (
 	maxMetaFieldRunes  = 200
 	maxEpisodeNameRune = 200
 	maxEpisodeURLRunes = 4096
+	maxNicknameRunes   = 16
 )
 
 // Episode 是房间内的剧集条目，仅保留播放所需的名称与地址。
@@ -73,14 +76,18 @@ func (s State) Current(now time.Time) int64 {
 }
 
 // Member 是房间成员。Token 不参与 JSON 序列化。
+// memberId 是成员的稳定身份，未来的弹幕等功能应通过 memberId 归属发言，
+// 而不是依赖可变的昵称。
 type Member struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Host      bool   `json:"host"`
 	Online    bool   `json:"online"`
+	JoinedAt  int64  `json:"joinedAt"`
 	Buffering bool   `json:"-"`
 
-	token string
+	token   string
+	joinSeq int64
 }
 
 // Command 是客户端提交的控制命令。
@@ -175,6 +182,7 @@ type Room struct {
 	hostID     string
 	state      State
 	lastActive time.Time
+	joinSeq    int64
 	closed     bool
 }
 
@@ -191,15 +199,40 @@ func newRoom(id string, now time.Time) *Room {
 func (r *Room) addMember(name string, host bool, token string) *Member {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.joinSeq++
 	m := &Member{
-		ID:    newMemberID(),
-		Name:  name,
-		Host:  host,
-		token: token,
+		ID:       newMemberID(),
+		Name:     r.uniqueNameLocked(name),
+		Host:     host,
+		JoinedAt: time.Now().UnixMilli(),
+		token:    token,
+		joinSeq:  r.joinSeq,
 	}
 	r.members[m.ID] = m
 	r.lastActive = time.Now()
 	return m
+}
+
+func (r *Room) uniqueNameLocked(name string) string {
+	name = truncateRunes(name, maxNicknameRunes)
+	taken := make(map[string]bool, len(r.members))
+	for _, member := range r.members {
+		taken[strings.ToLower(member.Name)] = true
+	}
+	if !taken[strings.ToLower(name)] {
+		return name
+	}
+	for n := 2; ; n++ {
+		suffix := "#" + strconv.Itoa(n)
+		baseLimit := maxNicknameRunes - utf8.RuneCountInString(suffix)
+		if baseLimit < 1 {
+			return truncateRunes(name, maxNicknameRunes)
+		}
+		candidate := truncateRunes(name, baseLimit) + suffix
+		if !taken[strings.ToLower(candidate)] {
+			return candidate
+		}
+	}
 }
 
 // Authenticate 校验成员凭证。
@@ -293,7 +326,7 @@ func (r *Room) Apply(cmd Command) (State, error) {
 	return r.state, nil
 }
 
-// Members 返回成员快照，房主排在最前。
+// Members 返回成员快照，房主排在最前，其余按加入顺序排列。
 func (r *Room) Members() []Member {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -308,6 +341,12 @@ func (r *Room) membersLocked() []Member {
 	sort.Slice(list, func(i, j int) bool {
 		if list[i].Host != list[j].Host {
 			return list[i].Host
+		}
+		if list[i].JoinedAt != list[j].JoinedAt {
+			return list[i].JoinedAt < list[j].JoinedAt
+		}
+		if list[i].joinSeq != list[j].joinSeq {
+			return list[i].joinSeq < list[j].joinSeq
 		}
 		return list[i].ID < list[j].ID
 	})
@@ -465,6 +504,21 @@ func (r *Room) close() {
 	for _, c := range clients {
 		c.close()
 	}
+}
+
+func sanitizeName(raw string) string {
+	var b strings.Builder
+	for _, r := range raw {
+		if unicode.IsControl(r) {
+			if unicode.IsSpace(r) {
+				b.WriteRune(' ')
+			}
+			continue
+		}
+		b.WriteRune(r)
+	}
+	name := strings.Join(strings.Fields(b.String()), " ")
+	return truncateRunes(name, maxNicknameRunes)
 }
 
 func truncateRunes(s string, max int) string {

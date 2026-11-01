@@ -20,6 +20,7 @@ type credentials struct {
 	RoomID      string `json:"roomId"`
 	MemberID    string `json:"memberId"`
 	MemberToken string `json:"memberToken"`
+	Name        string `json:"name"`
 	State       State  `json:"state"`
 }
 
@@ -37,6 +38,7 @@ func TestWatchPartyTwoClients(t *testing.T) {
 	hub := NewHubWithIdle(time.Hour)
 	t.Cleanup(hub.Close)
 	handler := NewHandler(hub)
+	handler.DisableRateLimit()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/watch/rooms", handler.Create)
@@ -298,9 +300,239 @@ func TestHostReconnectWithinGraceKeepsRoom(t *testing.T) {
 	}
 }
 
+func TestSanitizeName(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want string
+	}{
+		{"  张三 \t 李四\n", "张三 李四"},
+		{"a\x00b\x01c", "abc"},
+		{strings.Repeat("好", 20), strings.Repeat("好", 16)},
+		{"   ", ""},
+	}
+	for _, tc := range cases {
+		if got := sanitizeName(tc.raw); got != tc.want {
+			t.Fatalf("sanitizeName(%q) = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+}
+
+func TestCreateAndJoinRejectEmptyName(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	status, body := postStatus(t, ts.URL+"/api/watch/rooms", map[string]any{"name": "   "})
+	if status != http.StatusBadRequest || !strings.Contains(string(body), "请输入昵称") {
+		t.Fatalf("empty create = %d %s", status, body)
+	}
+
+	host := createRoom(t, ts.URL, "房主")
+	status, body = postStatus(t, ts.URL+"/api/watch/rooms/"+url.PathEscape(host.RoomID)+"/join", map[string]any{"name": "\x00\t "})
+	if status != http.StatusBadRequest || !strings.Contains(string(body), "请输入昵称") {
+		t.Fatalf("empty join = %d %s", status, body)
+	}
+}
+
+func TestNicknameDedupeCaseInsensitive(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	host := createRoom(t, ts.URL, "Alice")
+	if host.Name != "Alice" {
+		t.Fatalf("host name = %q", host.Name)
+	}
+	guest1 := joinRoom(t, ts.URL, host.RoomID, "alice")
+	if guest1.Name != "alice#2" {
+		t.Fatalf("guest1 name = %q, want alice#2", guest1.Name)
+	}
+	guest2 := joinRoom(t, ts.URL, host.RoomID, "ALICE")
+	if guest2.Name != "ALICE#3" {
+		t.Fatalf("guest2 name = %q, want ALICE#3", guest2.Name)
+	}
+
+	room, ok := hub.Get(host.RoomID)
+	if !ok {
+		t.Fatal("room missing")
+	}
+	members := room.Members()
+	if len(members) != 3 {
+		t.Fatalf("members = %+v", members)
+	}
+	want := []string{"Alice", "alice#2", "ALICE#3"}
+	for i, name := range want {
+		if members[i].Name != name || members[i].ID == "" {
+			t.Fatalf("member[%d] = %+v, want name %q", i, members[i], name)
+		}
+	}
+	if !members[0].Host || members[1].Host || members[2].Host {
+		t.Fatalf("host order/flag wrong: %+v", members)
+	}
+	if members[1].JoinedAt == 0 || members[2].JoinedAt == 0 {
+		t.Fatalf("joinedAt missing: %+v", members)
+	}
+}
+
+func TestNicknameDedupeRespectsLimit(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	base := strings.Repeat("a", 16)
+	host := createRoom(t, ts.URL, base)
+	guest1 := joinRoom(t, ts.URL, host.RoomID, base)
+	guest2 := joinRoom(t, ts.URL, host.RoomID, base)
+	want1 := strings.Repeat("a", 14) + "#2"
+	want2 := strings.Repeat("a", 14) + "#3"
+	if guest1.Name != want1 || guest2.Name != want2 {
+		t.Fatalf("dedupe names = %q, %q; want %q, %q", guest1.Name, guest2.Name, want1, want2)
+	}
+	for _, name := range []string{guest1.Name, guest2.Name} {
+		if len([]rune(name)) != maxNicknameRunes {
+			t.Fatalf("name %q length = %d", name, len([]rune(name)))
+		}
+	}
+}
+
+func TestGuestLeaveBroadcastsMembersToRemainingGuest(t *testing.T) {
+	hub := NewHubWithOptions(time.Hour, time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	host := createRoom(t, ts.URL, "房主")
+	guest1 := joinRoom(t, ts.URL, host.RoomID, "观众一")
+	guest2 := joinRoom(t, ts.URL, host.RoomID, "观众二")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	guest1Conn := dial(t, ctx, ts.URL, guest1)
+	defer guest1Conn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, guest1Conn, "state")
+	readUntilType(t, ctx, guest1Conn, "members")
+
+	guest2Conn := dial(t, ctx, ts.URL, guest2)
+	defer guest2Conn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, guest2Conn, "state")
+	readUntilType(t, ctx, guest2Conn, "members")
+
+	members := readMembersUntil(t, ctx, guest1Conn, func(list []Member) bool {
+		for _, member := range list {
+			if member.ID == guest2.MemberID && member.Online {
+				return true
+			}
+		}
+		return false
+	})
+	if len(members) != 3 {
+		t.Fatalf("members after guest2 connect = %+v", members)
+	}
+
+	leaveRoom(t, ts.URL, guest2)
+
+	members = readMembersWithout(t, ctx, guest1Conn, guest2.MemberID)
+	if len(members) != 2 {
+		t.Fatalf("members after guest2 leave = %+v", members)
+	}
+	for _, member := range members {
+		if member.ID == guest2.MemberID {
+			t.Fatalf("guest2 still present: %+v", members)
+		}
+	}
+}
+
+func TestGuestDisconnectBroadcastsOfflineToOthers(t *testing.T) {
+	hub := NewHubWithOptions(time.Hour, time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	host := createRoom(t, ts.URL, "房主")
+	guest := joinRoom(t, ts.URL, host.RoomID, "观众")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	hostConn := dial(t, ctx, ts.URL, host)
+	defer hostConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, hostConn, "state")
+	readUntilType(t, ctx, hostConn, "members")
+
+	guestConn := dial(t, ctx, ts.URL, guest)
+	defer guestConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, guestConn, "state")
+	readUntilType(t, ctx, guestConn, "members")
+	readMembersUntil(t, ctx, hostConn, func(list []Member) bool {
+		for _, member := range list {
+			if member.ID == guest.MemberID && member.Online {
+				return true
+			}
+		}
+		return false
+	})
+
+	guestConn.Close(websocket.StatusNormalClosure, "")
+
+	members := readMembersUntil(t, ctx, hostConn, func(list []Member) bool {
+		for _, member := range list {
+			if member.ID == guest.MemberID {
+				return !member.Online
+			}
+		}
+		return false
+	})
+	if len(members) != 2 {
+		t.Fatalf("members after guest disconnect = %+v", members)
+	}
+}
+
+func TestRateLimitJoin(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	handler := NewHandler(hub)
+	handler.SetRateLimit(2, time.Minute)
+	t.Cleanup(handler.DisableRateLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/watch/rooms", handler.Create)
+	mux.HandleFunc("POST /api/watch/rooms/{id}/join", handler.Join)
+	mux.HandleFunc("POST /api/watch/rooms/{id}/leave", handler.Leave)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	host := createRoom(t, ts.URL, "房主")
+	join := ts.URL + "/api/watch/rooms/" + url.PathEscape(host.RoomID) + "/join"
+	if status, body := postStatus(t, join, map[string]any{"name": "观众一"}); status != http.StatusOK {
+		t.Fatalf("join1 = %d %s", status, body)
+	}
+	if status, body := postStatus(t, join, map[string]any{"name": "观众二"}); status != http.StatusOK {
+		t.Fatalf("join2 = %d %s", status, body)
+	}
+	status, body := postStatus(t, join, map[string]any{"name": "观众三"})
+	if status != http.StatusTooManyRequests || !strings.Contains(string(body), "操作太频繁") {
+		t.Fatalf("join3 = %d %s, want 429", status, body)
+	}
+}
+
+func postStatus(t *testing.T, endpoint string, body any) (int, []byte) {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := http.Post(endpoint, "application/json", bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	data, _ := io.ReadAll(res.Body)
+	return res.StatusCode, data
+}
+
 func newTestServer(t *testing.T, hub *Hub) *httptest.Server {
 	t.Helper()
 	handler := NewHandler(hub)
+	handler.DisableRateLimit()
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/watch/rooms", handler.Create)
 	mux.HandleFunc("POST /api/watch/rooms/{id}/join", handler.Join)
@@ -363,6 +595,19 @@ func wsStatus(t *testing.T, ctx context.Context, baseURL string, c credentials) 
 		t.Fatalf("dial: %v", err)
 	}
 	return resp.StatusCode
+}
+
+func readMembersUntil(t *testing.T, ctx context.Context, conn *websocket.Conn, pred func([]Member) bool) []Member {
+	t.Helper()
+	for {
+		var msg wsMessage
+		if err := wsjson.Read(ctx, conn, &msg); err != nil {
+			t.Fatalf("read members: %v", err)
+		}
+		if msg.Type == "members" && pred(msg.Members) {
+			return msg.Members
+		}
+	}
 }
 
 func readMembersWithout(t *testing.T, ctx context.Context, conn *websocket.Conn, memberID string) []Member {
