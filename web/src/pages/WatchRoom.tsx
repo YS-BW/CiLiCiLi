@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type Artplayer from 'artplayer';
 import { api } from '../api/client';
 import type { SourceRef } from '../api/types';
-import { getSources, rememberSources } from '../lib/sourcesCache';
+import { lookupSources } from '../lib/sourceMatch';
 import {
   WatchPartyClient,
   WatchPartyError,
@@ -93,6 +93,9 @@ export default function WatchRoom() {
 
   const clientRef = useRef<WatchPartyClient | null>(null);
   const initialEpisodeSent = useRef(false);
+  const sourcesRef = useRef<SourceRef[]>([]);
+
+  useEffect(() => { sourcesRef.current = sources; }, [sources]);
 
   const isHost = useMemo(
     () => !!credentials && members.some(m => m.id === credentials.memberId && m.host),
@@ -171,35 +174,33 @@ export default function WatchRoom() {
 
   // 房主查找同片其它采集源，供房间内换源；观众只看当前片源。
   useEffect(() => {
-    if (!isHost || !roomTitle) {
+    if (!isHost || !roomTitle || !sourceKey) {
       setSources([]);
+      setSourcesLoading(false);
       return;
     }
+
+    const current: SourceRef = { sourceKey, vodId, sourceName, name: roomTitle };
+    // 切换到已在列表里的片源时无需重新查找。
+    if (sourcesRef.current.some(s => s.sourceKey === sourceKey && s.vodId === vodId)) {
+      setSourcesLoading(false);
+      return;
+    }
+
     let cancelled = false;
-    const cached = getSources(roomTitle);
-    if (cached.length > 0) {
-      setSources(dedupeSources(cached));
-      return;
-    }
     setSourcesLoading(true);
-    api.search(roomTitle, { fast: true })
-      .then(result => {
-        if (cancelled) return;
-        const media = result.media ?? [];
-        const exact = media.find(item => (item.title || '').trim() === roomTitle.trim());
-        const chosen = exact || media[0];
-        const list = chosen?.sources ?? [];
-        if (list.length > 0) rememberSources(roomTitle, list);
-        setSources(dedupeSources(list));
-      })
-      .catch(() => {
-        if (!cancelled) setSources([]);
-      })
-      .finally(() => {
-        if (!cancelled) setSourcesLoading(false);
-      });
+    lookupSources({
+      title: roomTitle,
+      // 房间内的年份未知，跳过年份校验。
+      current,
+      search: keyword => api.search(keyword, { fast: true }),
+      onUpdate: list => { if (!cancelled) setSources(dedupeSources(list)); },
+    })
+      .then(list => { if (!cancelled) setSources(dedupeSources(list)); })
+      .catch(() => { if (!cancelled) setSources(dedupeSources([current])); })
+      .finally(() => { if (!cancelled) setSourcesLoading(false); });
     return () => { cancelled = true; };
-  }, [isHost, roomTitle]);
+  }, [isHost, roomTitle, sourceKey, vodId, sourceName]);
 
   // 房主的手动播放/暂停/拖动会广播给服务器。
   useEffect(() => {

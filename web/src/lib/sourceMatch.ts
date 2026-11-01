@@ -1,4 +1,5 @@
 import type { SearchResponse, SourceRef } from '../api/types';
+import { getSources, rememberSources } from './sourcesCache';
 
 // 标题归一化：忽略大小写、空白与常见标点，便于把「庆余年 第一季」和「庆余年第一季」视为同片。
 export function normalizeTitle(input: string | undefined | null): string {
@@ -97,4 +98,56 @@ export function collectMatchingSources(
     });
   }
   return out;
+}
+
+export interface LookupSourcesOptions {
+  title: string;
+  year?: string;
+  current: SourceRef;
+  search: (keyword: string) => Promise<SearchResponse>;
+  // 每次得到更完整的结果时回调，便于页面渐进展示。
+  onUpdate?: (sources: SourceRef[]) => void;
+}
+
+// 查找同一部影片的其它采集源：当前源排第一，其次用缓存，最后按关键词搜索补全。
+// 标题可能因采集源不同而写法不同，交给 normalizeTitle 归一化后再匹配。
+export async function lookupSources({
+  title,
+  year,
+  current,
+  search,
+  onUpdate,
+}: LookupSourcesOptions): Promise<SourceRef[]> {
+  const { sourceKey, vodId } = current;
+  const hasCurrent = (list: SourceRef[]) =>
+    list.some(s => s.sourceKey === sourceKey && s.vodId === vodId);
+
+  const cached = getSources(title);
+  const base = mergeSources([current], cached);
+  onUpdate?.(base);
+
+  // 缓存里已经有多个来源时无需再搜。
+  if (cached.length > 1) {
+    if (hasCurrent(base)) rememberSources(title, base);
+    return base;
+  }
+
+  const matched: SourceRef[] = [];
+  try {
+    // 完整标题可能搜不到（例如带「第一季」），找不到时逐级回退到更短的关键词。
+    for (const keyword of searchKeywords(title)) {
+      const resp = await search(keyword);
+      matched.push(...collectMatchingSources(resp, title, year, sourceKey, vodId));
+      const merged = mergeSources([current], cached, matched);
+      onUpdate?.(merged);
+      if (hasCurrent(merged)) rememberSources(title, merged);
+      if (merged.some(s => s.sourceKey !== sourceKey || s.vodId !== vodId)) return merged;
+    }
+  } catch {
+    const fallback = mergeSources([current], cached);
+    onUpdate?.(fallback);
+    return fallback;
+  }
+
+  return mergeSources([current], cached, matched);
 }

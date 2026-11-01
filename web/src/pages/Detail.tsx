@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
-import { getSources, rememberSources } from '../lib/sourcesCache';
-import { collectMatchingSources, mergeSources, searchKeywords } from '../lib/sourceMatch';
+import { lookupSources } from '../lib/sourceMatch';
 import { createRoom, loadNickname, saveNickname } from '../lib/watchparty';
 import { saveWatchRoomMeta, type WatchRoomMeta } from './WatchRoom';
 
@@ -47,37 +46,16 @@ export default function Detail() {
       year,
       area: detail.videoInfo?.area,
     };
-    const hasCurrent = (list: SourceRef[]) =>
-      list.some(s => s.sourceKey === sourceKey && s.vodId === vodId);
-
     let cancelled = false;
-    const cached = getSources(title);
-    // 当前源永远排第一，即使搜索失败或缓存里没有它。
-    const base = mergeSources([current], cached);
-    setAllSources(base);
-
-    if (cached.length > 1) {
-      if (hasCurrent(base)) rememberSources(title, base);
-      return;
-    }
-
-    // 完整标题可能搜不到（例如带「第一季」），找不到时逐级回退到更短的关键词。
-    (async () => {
-      const matched: SourceRef[] = [];
-      try {
-        for (const keyword of searchKeywords(title)) {
-          const r = await api.search(keyword, { fast: true });
-          if (cancelled) return;
-          matched.push(...collectMatchingSources(r, title, year, sourceKey, vodId));
-          const merged = mergeSources([current], cached, matched);
-          setAllSources(merged);
-          if (hasCurrent(merged)) rememberSources(title, merged);
-          if (merged.some(s => s.sourceKey !== sourceKey || s.vodId !== vodId)) return;
-        }
-      } catch {
-        if (!cancelled) setAllSources(base);
-      }
-    })();
+    lookupSources({
+      title,
+      year,
+      current,
+      search: keyword => api.search(keyword, { fast: true }),
+      onUpdate: list => { if (!cancelled) setAllSources(list); },
+    })
+      .then(list => { if (!cancelled) setAllSources(list); })
+      .catch(() => { if (!cancelled) setAllSources([current]); });
     return () => { cancelled = true; };
   }, [detail, sourceKey, vodId]);
 
