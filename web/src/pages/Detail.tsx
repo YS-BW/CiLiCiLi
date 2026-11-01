@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
 import { getSources, rememberSources } from '../lib/sourcesCache';
-import { collectMatchingSources, mergeSources } from '../lib/sourceMatch';
+import { collectMatchingSources, mergeSources, searchKeywords } from '../lib/sourceMatch';
 import { createRoom } from '../lib/watchparty';
 import { saveWatchRoomMeta, type WatchRoomMeta } from './WatchRoom';
 
@@ -58,15 +58,23 @@ export default function Detail() {
       return;
     }
 
-    api.search(title, { fast: true }).then(r => {
-      if (cancelled) return;
-      const matched = collectMatchingSources(r, title, year, sourceKey, vodId);
-      const merged = mergeSources([current], cached, matched);
-      setAllSources(merged);
-      if (hasCurrent(merged)) rememberSources(title, merged);
-    }).catch(() => {
-      if (!cancelled) setAllSources(base);
-    });
+    // 完整标题可能搜不到（例如带「第一季」），找不到时逐级回退到更短的关键词。
+    (async () => {
+      const matched: SourceRef[] = [];
+      try {
+        for (const keyword of searchKeywords(title)) {
+          const r = await api.search(keyword, { fast: true });
+          if (cancelled) return;
+          matched.push(...collectMatchingSources(r, title, year, sourceKey, vodId));
+          const merged = mergeSources([current], cached, matched);
+          setAllSources(merged);
+          if (hasCurrent(merged)) rememberSources(title, merged);
+          if (merged.some(s => s.sourceKey !== sourceKey || s.vodId !== vodId)) return;
+        }
+      } catch {
+        if (!cancelled) setAllSources(base);
+      }
+    })();
     return () => { cancelled = true; };
   }, [detail, sourceKey, vodId]);
 

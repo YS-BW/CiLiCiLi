@@ -8,6 +8,33 @@ export function normalizeTitle(input: string | undefined | null): string {
     .replace(/[·:：\-_()（）【】[\]\s]/g, '');
 }
 
+// 末尾的季/部/版本限定词，例如「 第一季」「 Season 2」「 S2」「 特别版」「 剧场版」。
+const TRAILING_QUALIFIER = /\s+(?:第[0-9一二三四五六七八九十百千两零〇]+[季部]|season\s*\d+|s\d+|特别版|剧场版|特别篇|番外篇?|电影版|完整版|加长版|导演剪辑版|国语版|粤语版|双语版)\s*$/i;
+
+// 搜索关键词：先用完整标题，找不到时再退回首标题（去掉季/部/版本等后缀或第一个空格后的部分）。
+export function searchKeywords(title: string | undefined | null): string[] {
+  const full = (title || '').trim();
+  if (!full) return [];
+
+  let base = full;
+  while (TRAILING_QUALIFIER.test(base)) {
+    const next = base.replace(TRAILING_QUALIFIER, '').trim();
+    if (!next || next === base) break;
+    base = next;
+  }
+
+  // 没有可剥离的限定词时，尝试第一个空格前的部分（前缀至少 2 个字符）。
+  if (base === full) {
+    const idx = full.search(/\s/);
+    if (idx > 0) {
+      const prefix = full.slice(0, idx).trim();
+      if (prefix.length >= 2) base = prefix;
+    }
+  }
+
+  return base && base !== full ? [full, base] : [full];
+}
+
 function yearMatches(a: string | undefined, b: string | undefined): boolean {
   const ya = (a || '').replace(/\D/g, '');
   const yb = (b || '').replace(/\D/g, '');
