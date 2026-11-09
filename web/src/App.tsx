@@ -7,6 +7,7 @@ import Search from './pages/Search';
 import Detail from './pages/Detail';
 import My from './pages/My';
 import Sources from './pages/Sources';
+import WatchRoom from './pages/WatchRoom';
 
 export default function App() {
   const { ready, verified } = useAuth();
@@ -19,6 +20,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/watch/:roomId" element={<WatchRoom />} />
         <Route path="*" element={<Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />} />
       </Routes>
     );
@@ -31,6 +33,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/search" element={<Search />} />
         <Route path="/play/:sourceKey/:vodId" element={<Detail />} />
+        <Route path="/watch/:roomId" element={<WatchRoom />} />
         <Route path="/me" element={<My />} />
         <Route path="/sources" element={<Sources />} />
         <Route path="/login" element={<Navigate to="/" replace />} />

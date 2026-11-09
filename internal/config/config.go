@@ -70,8 +70,10 @@ type Config struct {
 	DefaultImageMode       string
 
 	LiveAllowPrivate bool
-	CorsOrigins      []string
-	LogLevel         string
+	// VodAllowBenchmarkNet 放行 198.18.0.0/15 基准测试段（仅 VOD 上游）。
+	VodAllowBenchmarkNet bool
+	CorsOrigins          []string
+	LogLevel             string
 }
 
 // Load 从环境变量读取配置。任何格式错误都会返回 error，而不是静默降级。
@@ -128,6 +130,7 @@ func Load() (*Config, error) {
 		DefaultRecommendSource: envString("DEFAULT_RECOMMEND_SOURCE", ""),
 		DefaultImageMode:       envString("DEFAULT_IMAGE_MODE", ""),
 		LiveAllowPrivate:       envBool("LIVE_ALLOW_PRIVATE", false),
+		VodAllowBenchmarkNet:   envBool("VOD_ALLOW_BENCHMARK_NET", false),
 		CorsOrigins:            splitCSV(envString("CORS_ORIGINS", "")),
 		LogLevel:               envString("LOG_LEVEL", "info"),
 	}

@@ -61,14 +61,14 @@ func TestCheckAddr(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.addr, func(t *testing.T) {
 			addr := netip.MustParseAddr(tc.addr)
-			err := checkAddr(addr, false)
+			err := checkAddr(addr, false, false)
 			if tc.blocked && !errors.Is(err, ErrBlocked) {
 				t.Fatalf("checkAddr(%s, false) = %v, 期望 ErrBlocked", tc.addr, err)
 			}
 			if !tc.blocked && err != nil {
 				t.Fatalf("checkAddr(%s, false) = %v, 期望放行", tc.addr, err)
 			}
-			err = checkAddr(addr, true)
+			err = checkAddr(addr, true, false)
 			if tc.blockedOpen && !errors.Is(err, ErrBlocked) {
 				t.Fatalf("checkAddr(%s, true) = %v, 期望仍被 ErrBlocked 拒绝", tc.addr, err)
 			}
@@ -80,8 +80,27 @@ func TestCheckAddr(t *testing.T) {
 }
 
 func TestCheckAddrInvalid(t *testing.T) {
-	if err := checkAddr(netip.Addr{}, false); !errors.Is(err, ErrBlocked) {
+	if err := checkAddr(netip.Addr{}, false, false); !errors.Is(err, ErrBlocked) {
 		t.Fatalf("checkAddr(零值, false) = %v, 期望 ErrBlocked", err)
+	}
+}
+
+func TestCheckAddrBenchmarkNet(t *testing.T) {
+	// 默认拒绝基准测试段。
+	if err := checkAddr(netip.MustParseAddr("198.18.0.1"), false, false); !errors.Is(err, ErrBlocked) {
+		t.Fatalf("checkAddr(198.18.0.1, false, false) = %v, 期望 ErrBlocked", err)
+	}
+	// 开启 AllowBenchmarkNet 后放行基准测试段。
+	if err := checkAddr(netip.MustParseAddr("198.18.0.1"), false, true); err != nil {
+		t.Fatalf("checkAddr(198.18.0.1, false, true) = %v, 期望放行", err)
+	}
+	// 开启后其他私网段仍被拒绝。
+	if err := checkAddr(netip.MustParseAddr("10.0.0.1"), false, true); !errors.Is(err, ErrBlocked) {
+		t.Fatalf("checkAddr(10.0.0.1, false, true) = %v, 期望 ErrBlocked", err)
+	}
+	// 云元数据即使在开启时也拒绝。
+	if err := checkAddr(netip.MustParseAddr("169.254.169.254"), false, true); !errors.Is(err, ErrBlocked) {
+		t.Fatalf("checkAddr(169.254.169.254, false, true) = %v, 期望 ErrBlocked", err)
 	}
 }
 
@@ -144,7 +163,7 @@ func TestResolveAndValidateLiteralIP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTarget: %v", err)
 	}
-	addrs, err := resolveAndValidate(ctx, lookup.lookup, u, false)
+	addrs, err := resolveAndValidate(ctx, lookup.lookup, u, false, false)
 	if err != nil {
 		t.Fatalf("resolveAndValidate: %v", err)
 	}
@@ -157,7 +176,7 @@ func TestResolveAndValidateLiteralIP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTarget: %v", err)
 	}
-	addrs, err = resolveAndValidate(ctx, lookup.lookup, u, false)
+	addrs, err = resolveAndValidate(ctx, lookup.lookup, u, false, false)
 	if err != nil {
 		t.Fatalf("resolveAndValidate: %v", err)
 	}
@@ -180,7 +199,7 @@ func TestResolveAndValidateHostname(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseTarget: %v", err)
 		}
-		addrs, err := resolveAndValidate(ctx, lookup.lookup, u, false)
+		addrs, err := resolveAndValidate(ctx, lookup.lookup, u, false, false)
 		if err != nil {
 			t.Fatalf("resolveAndValidate: %v", err)
 		}
@@ -197,7 +216,7 @@ func TestResolveAndValidateHostname(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseTarget: %v", err)
 		}
-		if _, err := resolveAndValidate(ctx, lookup.lookup, u, false); !errors.Is(err, ErrBlocked) {
+		if _, err := resolveAndValidate(ctx, lookup.lookup, u, false, false); !errors.Is(err, ErrBlocked) {
 			t.Fatalf("err = %v, 期望 ErrBlocked", err)
 		}
 	})
@@ -209,7 +228,7 @@ func TestResolveAndValidateHostname(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseTarget: %v", err)
 		}
-		if _, err := resolveAndValidate(ctx, lookup.lookup, u, false); err == nil {
+		if _, err := resolveAndValidate(ctx, lookup.lookup, u, false, false); err == nil {
 			t.Fatal("期望解析失败")
 		}
 	})
@@ -222,7 +241,7 @@ func TestResolveAndValidateHostname(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseTarget: %v", err)
 		}
-		if _, err := resolveAndValidate(ctx, lookup.lookup, u, false); !errors.Is(err, ErrBlocked) {
+		if _, err := resolveAndValidate(ctx, lookup.lookup, u, false, false); !errors.Is(err, ErrBlocked) {
 			t.Fatalf("err = %v, 期望 ErrBlocked", err)
 		}
 	})
@@ -233,7 +252,7 @@ func TestResolveAndValidateHostname(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseTarget: %v", err)
 		}
-		if _, err := resolveAndValidate(ctx, newTestLookup(nil).lookup, u, false); !errors.Is(err, ErrBlocked) {
+		if _, err := resolveAndValidate(ctx, newTestLookup(nil).lookup, u, false, false); !errors.Is(err, ErrBlocked) {
 			t.Fatalf("err = %v, 期望 ErrBlocked", err)
 		}
 	})
