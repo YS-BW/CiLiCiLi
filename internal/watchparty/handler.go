@@ -14,10 +14,18 @@ import (
 	"cilicili/internal/httpx"
 )
 
+const (
+	// DefaultDanmakuRateLimit 是每个成员在默认时间窗口内允许发送的弹幕数。
+	DefaultDanmakuRateLimit = 5
+	// DefaultDanmakuRateWindow 是弹幕限流的默认时间窗口。
+	DefaultDanmakuRateWindow = 2 * time.Second
+)
+
 // Handler 提供一起看的 HTTP / WebSocket 接口。
 type Handler struct {
-	hub     *Hub
-	limiter *rateLimiter
+	hub            *Hub
+	limiter        *rateLimiter
+	danmakuLimiter *rateLimiter
 }
 
 // NewHandler 创建 Handler。hub 为空时使用默认 Hub。
@@ -26,8 +34,9 @@ func NewHandler(hub *Hub) *Handler {
 		hub = NewHub()
 	}
 	return &Handler{
-		hub:     hub,
-		limiter: newRateLimiter(DefaultRateLimit, DefaultRateWindow),
+		hub:            hub,
+		limiter:        newRateLimiter(DefaultRateLimit, DefaultRateWindow),
+		danmakuLimiter: newRateLimiter(DefaultDanmakuRateLimit, DefaultDanmakuRateWindow),
 	}
 }
 
@@ -46,8 +55,23 @@ func (h *Handler) SetRateLimit(limit int, window time.Duration) {
 	}
 }
 
-// DisableRateLimit 关闭限流，主要用于测试。
-func (h *Handler) DisableRateLimit() { h.SetRateLimit(0, 0) }
+// SetDanmakuRateLimit 调整成员弹幕发送的限流参数；limit <= 0 表示禁用限流。
+// 建议在开始处理请求前调用。
+func (h *Handler) SetDanmakuRateLimit(limit int, window time.Duration) {
+	if h.danmakuLimiter != nil {
+		h.danmakuLimiter.close()
+		h.danmakuLimiter = nil
+	}
+	if limit > 0 {
+		h.danmakuLimiter = newRateLimiter(limit, window)
+	}
+}
+
+// DisableRateLimit 关闭 HTTP 与弹幕限流，主要用于测试。
+func (h *Handler) DisableRateLimit() {
+	h.SetRateLimit(0, 0)
+	h.SetDanmakuRateLimit(0, 0)
+}
 
 // Hub 返回底层 Hub。
 func (h *Handler) Hub() *Hub { return h.hub }
@@ -73,6 +97,9 @@ type clientMessage struct {
 	SourceName string    `json:"sourceName,omitempty"`
 	Episodes   []Episode `json:"episodes,omitempty"`
 	State      bool      `json:"state,omitempty"`
+	Text       string    `json:"text,omitempty"`
+	Color      string    `json:"color,omitempty"`
+	Mode       int       `json:"mode,omitempty"`
 }
 
 type stateMessage struct {
@@ -269,6 +296,24 @@ func (h *Handler) WS(w http.ResponseWriter, r *http.Request) {
 			room.Broadcast(stateMessage{Type: "state", State: state})
 		case "buffering":
 			room.setBuffering(memberID, msg.State)
+		case "danmaku":
+			text, err := sanitizeDanmaku(msg.Text)
+			if err != nil {
+				c.enqueueJSON(errorMessage{Type: "error", Msg: err.Error()})
+				continue
+			}
+			if !h.allowDanmaku(room.ID, memberID) {
+				c.enqueueJSON(errorMessage{Type: "error", Msg: "弹幕发送太频繁"})
+				continue
+			}
+			room.Broadcast(Danmaku{
+				Type:  "danmaku",
+				Text:  text,
+				Color: sanitizeDanmakuColor(msg.Color),
+				Mode:  sanitizeDanmakuMode(msg.Mode),
+				ID:    newDanmakuID(),
+				AtMs:  time.Now().UnixMilli(),
+			})
 		default:
 			c.enqueueJSON(errorMessage{Type: "error", Msg: "未知消息类型"})
 		}
@@ -303,6 +348,13 @@ func (h *Handler) allow(r *http.Request, kind string) bool {
 		return true
 	}
 	return h.limiter.allow(kind + "|" + remoteIP(r))
+}
+
+func (h *Handler) allowDanmaku(roomID, memberID string) bool {
+	if h.danmakuLimiter == nil {
+		return true
+	}
+	return h.danmakuLimiter.allow(roomID + "|" + memberID)
 }
 
 func remoteIP(r *http.Request) string {

@@ -32,6 +32,11 @@ type wsMessage struct {
 	Members  []Member `json:"members"`
 	Msg      string   `json:"msg"`
 	Reason   string   `json:"reason"`
+	Text     string   `json:"text"`
+	Color    string   `json:"color"`
+	Mode     int      `json:"mode"`
+	ID       string   `json:"id"`
+	AtMs     int64    `json:"atMs"`
 }
 
 func TestWatchPartyTwoClients(t *testing.T) {
@@ -102,6 +107,136 @@ func TestWatchPartyTwoClients(t *testing.T) {
 	writeJSON(t, ctx, guestConn, map[string]any{"type": "ping", "clientTs": 42})
 	if msg := readUntilType(t, ctx, guestConn, "pong"); msg.ClientTs != 42 || msg.ServerTs == 0 {
 		t.Fatalf("pong = %+v", msg)
+	}
+}
+
+func TestDanmakuBroadcastLiveToAllMembers(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	host := createRoom(t, ts.URL, "房主")
+	guest := joinRoom(t, ts.URL, host.RoomID, "观众")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	hostConn := dial(t, ctx, ts.URL, host)
+	defer hostConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, hostConn, "state")
+	readUntilType(t, ctx, hostConn, "members")
+
+	guestConn := dial(t, ctx, ts.URL, guest)
+	defer guestConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, guestConn, "state")
+	readUntilType(t, ctx, guestConn, "members")
+
+	writeJSON(t, ctx, guestConn, map[string]any{
+		"type":  "danmaku",
+		"text":  "  前方高能 <script> \n",
+		"color": "#FFCC00",
+		"mode":  0,
+	})
+
+	hostMsg := readUntilType(t, ctx, hostConn, "danmaku")
+	guestMsg := readUntilType(t, ctx, guestConn, "danmaku")
+	for name, msg := range map[string]wsMessage{"host": hostMsg, "guest": guestMsg} {
+		if msg.Text != "前方高能 <script>" {
+			t.Fatalf("%s danmaku text = %q", name, msg.Text)
+		}
+		if msg.Color != "#ffcc00" || msg.Mode != 0 {
+			t.Fatalf("%s danmaku color/mode = %q/%d", name, msg.Color, msg.Mode)
+		}
+		if msg.ID == "" || msg.AtMs == 0 {
+			t.Fatalf("%s danmaku id/atMs = %q/%d", name, msg.ID, msg.AtMs)
+		}
+	}
+	if hostMsg.ID != guestMsg.ID || hostMsg.AtMs != guestMsg.AtMs {
+		t.Fatalf("broadcast differs: host=%+v guest=%+v", hostMsg, guestMsg)
+	}
+}
+
+func TestDanmakuValidationAndDefaults(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	ts := newTestServer(t, hub)
+
+	host := createRoom(t, ts.URL, "房主")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn := dial(t, ctx, ts.URL, host)
+	defer conn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, conn, "state")
+	readUntilType(t, ctx, conn, "members")
+
+	writeJSON(t, ctx, conn, map[string]any{"type": "danmaku", "text": "  \t\n "})
+	if msg := readUntilType(t, ctx, conn, "error"); msg.Msg != ErrDanmakuEmpty.Error() {
+		t.Fatalf("empty danmaku error = %q", msg.Msg)
+	}
+
+	writeJSON(t, ctx, conn, map[string]any{"type": "danmaku", "text": strings.Repeat("弹", maxDanmakuRunes+1)})
+	if msg := readUntilType(t, ctx, conn, "error"); msg.Msg != ErrDanmakuTooLong.Error() {
+		t.Fatalf("too long danmaku error = %q", msg.Msg)
+	}
+
+	writeJSON(t, ctx, conn, map[string]any{
+		"type":  "danmaku",
+		"text":  "正常弹幕",
+		"color": "red",
+		"mode":  9,
+	})
+	msg := readUntilType(t, ctx, conn, "danmaku")
+	if msg.Text != "正常弹幕" || msg.Color != "" || msg.Mode != 0 {
+		t.Fatalf("invalid color/mode should fall back: %+v", msg)
+	}
+}
+
+func TestDanmakuRateLimitPerMember(t *testing.T) {
+	hub := NewHubWithIdle(time.Hour)
+	t.Cleanup(hub.Close)
+	handler := NewHandler(hub)
+	handler.DisableRateLimit()
+	handler.SetDanmakuRateLimit(2, time.Minute)
+	t.Cleanup(handler.DisableRateLimit)
+	ts := newTestServerWithHandler(t, handler)
+
+	host := createRoom(t, ts.URL, "房主")
+	guest := joinRoom(t, ts.URL, host.RoomID, "观众")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	hostConn := dial(t, ctx, ts.URL, host)
+	defer hostConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, hostConn, "state")
+	readUntilType(t, ctx, hostConn, "members")
+
+	guestConn := dial(t, ctx, ts.URL, guest)
+	defer guestConn.Close(websocket.StatusNormalClosure, "")
+	readUntilType(t, ctx, guestConn, "state")
+	readUntilType(t, ctx, guestConn, "members")
+
+	for i := 0; i < 2; i++ {
+		writeJSON(t, ctx, guestConn, map[string]any{"type": "danmaku", "text": "弹幕"})
+		if msg := readUntilType(t, ctx, guestConn, "danmaku"); msg.Text != "弹幕" {
+			t.Fatalf("danmaku %d = %+v", i, msg)
+		}
+		if msg := readUntilType(t, ctx, hostConn, "danmaku"); msg.Text != "弹幕" {
+			t.Fatalf("host saw danmaku %d = %+v", i, msg)
+		}
+	}
+
+	writeJSON(t, ctx, guestConn, map[string]any{"type": "danmaku", "text": "第三条"})
+	if msg := readUntilType(t, ctx, guestConn, "error"); msg.Msg != "弹幕发送太频繁" {
+		t.Fatalf("rate limit error = %q", msg.Msg)
+	}
+
+	// 房主是独立成员，不受观众配额影响。
+	writeJSON(t, ctx, hostConn, map[string]any{"type": "danmaku", "text": "房主弹幕"})
+	if msg := readUntilType(t, ctx, hostConn, "danmaku"); msg.Text != "房主弹幕" {
+		t.Fatalf("host danmaku = %+v", msg)
 	}
 }
 
@@ -533,6 +668,11 @@ func newTestServer(t *testing.T, hub *Hub) *httptest.Server {
 	t.Helper()
 	handler := NewHandler(hub)
 	handler.DisableRateLimit()
+	return newTestServerWithHandler(t, handler)
+}
+
+func newTestServerWithHandler(t *testing.T, handler *Handler) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/watch/rooms", handler.Create)
 	mux.HandleFunc("POST /api/watch/rooms/{id}/join", handler.Join)

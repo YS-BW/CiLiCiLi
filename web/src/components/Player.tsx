@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Artplayer from 'artplayer';
 import Hls, { type HlsConfig } from 'hls.js';
+import artplayerPluginDanmuku from 'artplayer-plugin-danmuku';
 import { PlaybackRecovery, describeHlsError } from '../lib/playback-recovery';
 
 export interface PlayerProps {
@@ -12,6 +13,7 @@ export interface PlayerProps {
   onRequestSwitchSource?: (reason: string) => void;
   onHint?: (text: string) => void;
   onReady?: (art: Artplayer) => void;
+  danmaku?: boolean;
 }
 
 function buildHlsConfig(): Partial<HlsConfig> {
@@ -64,6 +66,24 @@ export default function Player(props: PlayerProps) {
       aspectRatio: true,
       hotkey: true,
       lang: 'zh-cn',
+      plugins: props.danmaku
+        ? [
+            artplayerPluginDanmuku({
+              danmuku: [],
+              mode: 0,
+              speed: 8,
+              fontSize: 25,
+              opacity: 1,
+              margin: [8, '18%'],
+              color: '#ffffff',
+              antiOverlap: true,
+              emitter: false,
+              maxLength: 80,
+              theme: 'dark',
+              visible: true,
+            }),
+          ]
+        : [],
       customType: {
         m3u8: (video: HTMLVideoElement, url: string, artInstance: Artplayer) => {
           setupHls(video, url, artInstance, true);
@@ -137,7 +157,7 @@ export default function Player(props: PlayerProps) {
 
     return () => { clearInterval(watchdog); try { art.destroy(false); } catch { /* ignore */ } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.url, props.episodeKey]);
+  }, [props.url, props.episodeKey, props.danmaku]);
 
   return <div ref={hostRef} className="artplayer-host" style={{ width: '100%', height: '100%' }} />;
 }

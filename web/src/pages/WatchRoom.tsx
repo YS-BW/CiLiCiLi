@@ -15,6 +15,7 @@ import {
   loadNickname,
   saveNickname,
   type StoredMemberCredentials,
+  type WatchDanmaku,
   type WatchMember,
   type WatchState,
 } from '../lib/watchparty';
@@ -40,6 +41,37 @@ export interface WatchRoomMeta {
 }
 
 const META_PREFIX = 'watch:meta:';
+const DANMAKU_MAX_LENGTH = 80;
+const DANMAKU_COLORS = ['#ffffff', '#ffcc00', '#ff6b6b', '#4ecdc4', '#a78bfa'];
+
+interface DanmakuPlugin {
+  emit: (danmu: {
+    text: string;
+    color?: string;
+    mode?: number;
+    id?: string;
+    time?: number;
+  }) => unknown;
+}
+
+function getDanmakuPlugin(art: Artplayer | null): DanmakuPlugin | null {
+  const plugins = art?.plugins as Record<string, unknown> | undefined;
+  const plugin = plugins?.artplayerPluginDanmuku as DanmakuPlugin | undefined;
+  return plugin && typeof plugin.emit === 'function' ? plugin : null;
+}
+
+function emitDanmaku(art: Artplayer | null, danmaku: WatchDanmaku): boolean {
+  const plugin = getDanmakuPlugin(art);
+  if (!plugin) return false;
+  plugin.emit({
+    text: danmaku.text,
+    color: danmaku.color || undefined,
+    mode: danmaku.mode ?? 0,
+    id: danmaku.id,
+    time: art?.currentTime,
+  });
+  return true;
+}
 
 function dedupeSources(list: SourceRef[]): SourceRef[] {
   const seen = new Set<string>();
@@ -90,12 +122,24 @@ export default function WatchRoom() {
   const [sourcesLoading, setSourcesLoading] = useState(false);
   const [switchingSource, setSwitchingSource] = useState('');
   const [sourceError, setSourceError] = useState('');
+  const [danmakuText, setDanmakuText] = useState('');
+  const [danmakuColor, setDanmakuColor] = useState(DANMAKU_COLORS[0]);
 
   const clientRef = useRef<WatchPartyClient | null>(null);
   const initialEpisodeSent = useRef(false);
   const sourcesRef = useRef<SourceRef[]>([]);
+  const artRef = useRef<Artplayer | null>(null);
+  const pendingDanmakuRef = useRef<WatchDanmaku[]>([]);
 
   useEffect(() => { sourcesRef.current = sources; }, [sources]);
+
+  useEffect(() => {
+    artRef.current = art;
+    if (!art || !getDanmakuPlugin(art) || pendingDanmakuRef.current.length === 0) return;
+    const pending = pendingDanmakuRef.current;
+    pendingDanmakuRef.current = [];
+    for (const danmaku of pending) emitDanmaku(art, danmaku);
+  }, [art]);
 
   const isHost = useMemo(
     () => !!credentials && members.some(m => m.id === credentials.memberId && m.host),
@@ -125,6 +169,11 @@ export default function WatchRoom() {
     const unsubs = [
       client.on('state', s => setState(s)),
       client.on('members', list => setMembers(list)),
+      client.on('danmaku', danmaku => {
+        if (emitDanmaku(artRef.current, danmaku)) return;
+        pendingDanmakuRef.current.push(danmaku);
+        if (pendingDanmakuRef.current.length > 50) pendingDanmakuRef.current.shift();
+      }),
       client.on('open', () => { setConnected(true); setError(''); }),
       client.on('error', msg => setError(msg)),
       client.on('close', info => {
@@ -310,6 +359,14 @@ export default function WatchRoom() {
     clientRef.current?.sendCommand({ op: 'episode', episode: index, url: episode.url, positionMs: 0 });
   }
 
+  function submitDanmaku(e: React.FormEvent) {
+    e.preventDefault();
+    const text = danmakuText.trim();
+    if (!text) return;
+    clientRef.current?.sendDanmaku(text, { color: danmakuColor, mode: 0 });
+    setDanmakuText('');
+  }
+
   async function switchSource(source: SourceRef) {
     if (!isHost || source.sourceKey === sourceKey) return;
     setSourceError('');
@@ -418,12 +475,39 @@ export default function WatchRoom() {
                 url={state.url}
                 episodeKey={String(state.episode)}
                 onReady={setArt}
+                danmaku
               />
             </Suspense>
           ) : (
             <div className="watch-empty">等待房主选择剧集…</div>
           )}
         </div>
+
+        <form className="watch-danmaku-form" onSubmit={submitDanmaku}>
+          <div className="watch-danmaku-colors" role="group" aria-label="弹幕颜色">
+            {DANMAKU_COLORS.map(color => (
+              <button
+                key={color}
+                type="button"
+                className={`watch-danmaku-color${danmakuColor === color ? ' active' : ''}`}
+                style={{ background: color }}
+                aria-label={`选择颜色 ${color}`}
+                aria-pressed={danmakuColor === color}
+                onClick={() => setDanmakuColor(color)}
+              />
+            ))}
+          </div>
+          <input
+            value={danmakuText}
+            onChange={e => setDanmakuText(e.target.value)}
+            placeholder="发个弹幕吧…"
+            maxLength={DANMAKU_MAX_LENGTH}
+            aria-label="弹幕内容"
+          />
+          <button className="btn play" type="submit" disabled={!danmakuText.trim()}>
+            发送
+          </button>
+        </form>
 
         <aside className="watch-side">
           <div className="watch-section-head watch-members-head">

@@ -285,6 +285,7 @@ func randomHex(n int) string {
 	return hex.EncodeToString(buf)
 }
 
-func newRoomID() string   { return randomHex(8) }
-func newMemberID() string { return "m_" + randomHex(8) }
-func newToken() string    { return randomHex(24) }
+func newRoomID() string    { return randomHex(8) }
+func newMemberID() string  { return "m_" + randomHex(8) }
+func newDanmakuID() string { return "d_" + randomHex(8) }
+func newToken() string     { return randomHex(24) }

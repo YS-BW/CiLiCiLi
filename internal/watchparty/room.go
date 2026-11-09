@@ -23,6 +23,7 @@ const (
 	maxEpisodeNameRune = 200
 	maxEpisodeURLRunes = 4096
 	maxNicknameRunes   = 16
+	maxDanmakuRunes    = 80
 )
 
 // Episode 是房间内的剧集条目，仅保留播放所需的名称与地址。
@@ -36,6 +37,10 @@ var (
 	ErrForbidden = errors.New("仅房主可以控制播放")
 	// ErrUnknownOp 表示未知的控制命令。
 	ErrUnknownOp = errors.New("未知控制命令")
+	// ErrDanmakuEmpty 表示弹幕内容为空。
+	ErrDanmakuEmpty = errors.New("弹幕内容不能为空")
+	// ErrDanmakuTooLong 表示弹幕超过长度限制。
+	ErrDanmakuTooLong = errors.New("弹幕内容太长")
 )
 
 // State 是房间唯一的权威时间轴状态。
@@ -102,6 +107,16 @@ type Command struct {
 	VodID      string    `json:"vodId,omitempty"`
 	SourceName string    `json:"sourceName,omitempty"`
 	Episodes   []Episode `json:"episodes,omitempty"`
+}
+
+// Danmaku 是实时广播的弹幕消息。AtMs 是服务端广播时间，不作为视频时间轴使用。
+type Danmaku struct {
+	Type  string `json:"type"`
+	Text  string `json:"text"`
+	Color string `json:"color,omitempty"`
+	Mode  int    `json:"mode"`
+	ID    string `json:"id"`
+	AtMs  int64  `json:"atMs"`
 }
 
 type client struct {
@@ -506,7 +521,7 @@ func (r *Room) close() {
 	}
 }
 
-func sanitizeName(raw string) string {
+func sanitizeText(raw string) string {
 	var b strings.Builder
 	for _, r := range raw {
 		if unicode.IsControl(r) {
@@ -517,8 +532,45 @@ func sanitizeName(raw string) string {
 		}
 		b.WriteRune(r)
 	}
-	name := strings.Join(strings.Fields(b.String()), " ")
-	return truncateRunes(name, maxNicknameRunes)
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+func sanitizeName(raw string) string {
+	return truncateRunes(sanitizeText(raw), maxNicknameRunes)
+}
+
+func sanitizeDanmaku(raw string) (string, error) {
+	text := sanitizeText(raw)
+	if text == "" {
+		return "", ErrDanmakuEmpty
+	}
+	if utf8.RuneCountInString(text) > maxDanmakuRunes {
+		return "", ErrDanmakuTooLong
+	}
+	return text, nil
+}
+
+func sanitizeDanmakuColor(raw string) string {
+	color := strings.TrimSpace(raw)
+	if len(color) != 4 && len(color) != 7 {
+		return ""
+	}
+	if color[0] != '#' {
+		return ""
+	}
+	for _, r := range color[1:] {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return ""
+		}
+	}
+	return strings.ToLower(color)
+}
+
+func sanitizeDanmakuMode(mode int) int {
+	if mode < 0 || mode > 2 {
+		return 0
+	}
+	return mode
 }
 
 func truncateRunes(s string, max int) string {

@@ -27,6 +27,14 @@ export interface WatchMember {
   joinedAt?: number;
 }
 
+export interface WatchDanmaku {
+  text: string;
+  color?: string;
+  mode?: number;
+  id?: string;
+  atMs?: number;
+}
+
 export interface WatchCredentials {
   roomId: string;
   memberId: string;
@@ -202,6 +210,10 @@ interface ServerMembersMessage {
   members: WatchMember[];
 }
 
+interface ServerDanmakuMessage extends WatchDanmaku {
+  type: 'danmaku';
+}
+
 interface ServerPongMessage {
   type: 'pong';
   clientTs: number;
@@ -221,12 +233,13 @@ interface ServerClosedMessage {
 type ServerMessage =
   | ServerStateMessage
   | ServerMembersMessage
+  | ServerDanmakuMessage
   | ServerPongMessage
   | ServerErrorMessage
   | ServerClosedMessage;
 
 interface ClientMessage {
-  type: 'ping' | 'cmd' | 'buffering';
+  type: 'ping' | 'cmd' | 'buffering' | 'danmaku';
   clientTs?: number;
   op?: WatchCommandOp;
   positionMs?: number;
@@ -238,11 +251,15 @@ interface ClientMessage {
   sourceName?: string;
   episodes?: WatchEpisode[];
   state?: boolean;
+  text?: string;
+  color?: string;
+  mode?: number;
 }
 
 export interface WatchClientEvents {
   state: WatchState;
   members: WatchMember[];
+  danmaku: WatchDanmaku;
   error: string;
   open: void;
   close: { code: number; reason: string; willReconnect: boolean };
@@ -351,6 +368,15 @@ export class WatchPartyClient {
     this.send({ type: 'buffering', state: buffering });
   }
 
+  sendDanmaku(text: string, options: { color?: string; mode?: number } = {}): void {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const message: ClientMessage = { type: 'danmaku', text: trimmed };
+    if (options.color) message.color = options.color;
+    if (options.mode !== undefined) message.mode = options.mode;
+    this.send(message);
+  }
+
   private openSocket(): void {
     if (this.manuallyClosed || this.closed) return;
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
@@ -443,6 +469,17 @@ export class WatchPartyClient {
       }
       case 'members':
         this.emit('members', Array.isArray(message.members) ? message.members : []);
+        return;
+      case 'danmaku':
+        if (typeof message.text === 'string' && message.text.trim()) {
+          this.emit('danmaku', {
+            text: message.text,
+            color: typeof message.color === 'string' ? message.color : undefined,
+            mode: typeof message.mode === 'number' ? message.mode : undefined,
+            id: typeof message.id === 'string' ? message.id : undefined,
+            atMs: typeof message.atMs === 'number' ? message.atMs : undefined,
+          });
+        }
         return;
       case 'pong':
         this.handlePong(message);
