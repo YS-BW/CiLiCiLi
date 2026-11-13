@@ -167,6 +167,12 @@ img { display: block; }
 .lines .l { padding: 7px 16px; border-radius: 20px; border: 1px solid #3a3a3a; cursor: pointer; color: #ccc; font-size: 13px; transition: .15s; }
 .lines .l:hover { border-color: #888; }
 .lines .l.active { background: #fff; color: #000; border-color: #fff; font-weight: 700; }
+.lines .l .lat { font-style: normal; margin-left: 7px; font-size: 11px; font-weight: 400; color: #8fd3a2; opacity: .9; }
+.lines .l .lat.slow { color: #ffc266; }
+.lines .l .lat.bad { color: #ff8a8a; }
+.lines .l .lat.pending { color: #888; }
+.lines .l.active .lat { color: rgba(0,0,0,.58); }
+.lines .l.active .lat.bad { color: #c62828; }
 
 /* 分集：规整网格（Netflix 选集列表风），不用散乱小方块 */
 .eps { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 320px; overflow: auto; padding-right: 6px; }
@@ -310,6 +316,11 @@ img { display: block; }
 .watch-source-chip:hover:not(:disabled) { border-color: #666; color: #fff; }
 .watch-source-chip.active { background: #e50914; border-color: #e50914; color: #fff; cursor: default; }
 .watch-source-chip:disabled { opacity: .65; }
+.watch-source-chip .lat { font-style: normal; margin-left: 7px; font-size: 11px; font-weight: 400; color: #8fd3a2; }
+.watch-source-chip .lat.slow { color: #ffc266; }
+.watch-source-chip .lat.bad { color: #ff8a8a; }
+.watch-source-chip .lat.pending { color: #777; }
+.watch-source-chip.active .lat { color: rgba(255,255,255,.82); }
 .watch-current-source { font-size: 13px; }
 .watch-source-error { font-size: 12px; color: #ff8a8a; }
 .watch-tip { font-size: 12px; color: #888; line-height: 1.6; border-top: 1px solid #262626; padding-top: 12px; }

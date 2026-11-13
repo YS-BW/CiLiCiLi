@@ -2,8 +2,15 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type Artplayer from 'artplayer';
 import { api } from '../api/client';
-import type { SourceRef } from '../api/types';
+import type { SourceRef, SourceLatencyResult } from '../api/types';
 import { lookupSources } from '../lib/sourceMatch';
+import {
+  latencyClass,
+  latencyLabel,
+  latencyTitle,
+  probeLatency,
+  sourceLatencyKey,
+} from '../lib/latency';
 import {
   WatchPartyClient,
   WatchPartyError,
@@ -120,6 +127,7 @@ export default function WatchRoom() {
   const [roomGone, setRoomGone] = useState(false);
   const [sources, setSources] = useState<SourceRef[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [sourceLatency, setSourceLatency] = useState<Record<string, SourceLatencyResult>>({});
   const [switchingSource, setSwitchingSource] = useState('');
   const [sourceError, setSourceError] = useState('');
   const [danmakuText, setDanmakuText] = useState('');
@@ -250,6 +258,23 @@ export default function WatchRoom() {
       .finally(() => { if (!cancelled) setSourcesLoading(false); });
     return () => { cancelled = true; };
   }, [isHost, roomTitle, sourceKey, vodId, sourceName]);
+
+  // 片源延迟：与详情页一致，列表先展示，延迟随后后台补齐。
+  useEffect(() => {
+    if (!isHost || sources.length === 0) return;
+    const items = dedupeSources(sources).map(source => ({
+      key: sourceLatencyKey(source.sourceKey, source.vodId),
+      sourceKey: source.sourceKey,
+      vodId: source.vodId,
+    }));
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      probeLatency(items)
+        .then(map => { if (!cancelled) setSourceLatency(prev => ({ ...prev, ...map })); })
+        .catch(() => { /* ignore */ });
+    }, 150);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [isHost, sources]);
 
   // 房主的手动播放/暂停/拖动会广播给服务器。
   useEffect(() => {
@@ -557,15 +582,18 @@ export default function WatchRoom() {
                 <div className="watch-source-chips">
                   {sourceOptions.map(source => {
                     const current = source.sourceKey === sourceKey;
+                    const lat = sourceLatency[sourceLatencyKey(source.sourceKey, source.vodId)];
                     return (
                       <button
                         key={source.sourceKey}
                         type="button"
                         className={`watch-source-chip${current ? ' active' : ''}`}
+                        title={latencyTitle(lat)}
                         onClick={() => { if (!current) void switchSource(source); }}
                         disabled={current || switchingSource !== ''}
                       >
                         {source.sourceName || source.sourceKey}
+                        <em className={`lat ${latencyClass(lat)}`}>{latencyLabel(lat)}</em>
                       </button>
                     );
                   })}

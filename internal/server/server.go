@@ -78,6 +78,7 @@ func New(d Deps) http.Handler {
 
 	mux.HandleFunc("POST /api/search", guard(d.API.Search))
 	mux.HandleFunc("GET /api/detail", guard(d.API.Detail))
+	mux.HandleFunc("POST /api/latency", guard(d.API.Latency))
 	mux.HandleFunc("GET /api/sources", guard(d.API.Sources))
 	mux.HandleFunc("POST /api/sources", guard(d.API.SourceCreate))
 	mux.HandleFunc("POST /api/sources/test", guard(d.API.SourceTest))

@@ -2,6 +2,7 @@ import type {
   SourcesAdminResponse, SourceAdminItem,
   AuthStatus, AuthResponse, SearchResponse, StreamEvent, VideoDetail,
   RecommendItem, WatchProgress, FavoriteItem, SearchMedia,
+  SourceLatencyResult, LatencyProbeItem,
 } from './types';
 
 // 同源部署：所有请求走相对路径 /api，cookie 由浏览器自动携带（httpOnly cilici_session）。
@@ -100,6 +101,13 @@ export const api = {
     const q = new URLSearchParams({ id: vodId, sourceKey });
     return jsonFetch<VideoDetail>(`/api/detail?${q.toString()}`);
   },
+
+  // 批量测量播放列表延迟（url 或 sourceKey+vodId，后端并发探测、单条超时）。
+  latency: (items: LatencyProbeItem[]) =>
+    jsonFetch<{ results: SourceLatencyResult[] }>('/api/latency', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }).then(r => r.results || []),
 
   douban: (type: 'movie' | 'tv' = 'movie', tag = '热门', pageStart = 0, pageSize = 25) =>
     jsonFetch<{ items: SearchMedia[] }>(

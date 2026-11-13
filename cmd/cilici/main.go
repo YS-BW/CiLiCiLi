@@ -21,6 +21,7 @@ import (
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
 	"cilicili/internal/discover"
+	"cilicili/internal/latency"
 	"cilicili/internal/live"
 	"cilicili/internal/media"
 	"cilicili/internal/probe"
@@ -173,6 +174,11 @@ func run() error {
 		Concurrency:     cfg.QualityConcurrency,
 		HostConcurrency: 3,
 	})
+	latencyProber := latency.New(latency.Options{
+		Client: client,
+		UA:     cfg.UserAgent,
+		Logger: log,
+	})
 	liveService := live.New(live.Options{
 		Client:           client,
 		Cache:            store,
@@ -275,6 +281,7 @@ func run() error {
 		Proxy:     proxyHandler,
 		LiveProxy: liveProxy,
 		Quality:   qualityProber,
+		Latency:   latencyProber,
 		Live:      liveService,
 		Recommend: recommendFetcher,
 		Subscribe: subscribeFetcher,

@@ -15,6 +15,7 @@ import (
 	"cilicili/internal/detail"
 	"cilicili/internal/discover"
 	"cilicili/internal/httpx"
+	"cilicili/internal/latency"
 	"cilicili/internal/live"
 	"cilicili/internal/media"
 	"cilicili/internal/model"
@@ -46,6 +47,7 @@ type Deps struct {
 	Proxy     http.Handler
 	LiveProxy http.Handler
 	Quality   *quality.Prober
+	Latency   *latency.Prober
 	Live      *live.Service
 	Recommend *recommend.Fetcher
 	Subscribe SubscriptionFetcher
@@ -87,6 +89,7 @@ func (a *API) Status(w http.ResponseWriter, r *http.Request) {
 		"search.fast_mode",
 		"detail",
 		"detail.playlines",
+		"latency",
 		"proxy",
 		"sources",
 		"sources.subscribe",

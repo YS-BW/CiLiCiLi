@@ -43,6 +43,23 @@ export type StreamEvent =
 
 export interface Episode { id: string; name: string; index: number; url: string }
 export interface PlayLine { id: string; name: string; index: number; preferred: boolean; episodes: Episode[] }
+
+export interface SourceLatencyResult {
+  key: string;
+  ok: boolean;
+  ttfbMs?: number;
+  ms?: number;
+  status?: number;
+  error?: string;
+  timedOut?: boolean;
+}
+
+export interface LatencyProbeItem {
+  key: string;
+  url?: string;
+  sourceKey?: string;
+  vodId?: string;
+}
 export interface VideoInfo {
   title: string; cover: string; desc: string; typeName: string; year: string; area: string;
   director: string; actor: string; remarks: string; sourceKey: string; sourceName: string; sourceUrl: string;

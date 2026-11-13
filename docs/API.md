@@ -34,7 +34,7 @@ Base URL：`/api`。除特别说明外：
   "defaultSubscriptions": [],
   "defaultRecommendSource": "",
   "defaultImageMode": "",
-  "capabilities": ["search.stream","search.soft_deadline","search.server_health","detail","proxy","sources","auth.bearer"]
+  "capabilities": ["search.stream","search.soft_deadline","search.server_health","detail","latency","proxy","sources","auth.bearer"]
 }
 ```
 
@@ -351,6 +351,33 @@ Base URL：`/api`。除特别说明外：
   `height` 缺失=测不出（单码率/直链/防盗链），有 `error`=本次失败。
 - 流式：先发一行 `{"ping":true}`，再逐条发结果；服务端并发 3、同 host ≤3。
 - 缓存：成功 30 天 / 失败 2 分钟。单条总死线默认 8s。
+
+## 6.1 播放列表延迟探测
+
+### POST /api/latency
+
+需要登录。用于详情页/一起看给片源或线路标注延迟。Body 最多 20 条：
+
+```json
+{"items":[
+  {"key":"source:env_0:12345","sourceKey":"env_0","vodId":"12345"},
+  {"key":"line:env_0:12345:ln:ffm3u8","url":"https://cdn.test/1/index.m3u8"}
+]}
+```
+
+- `url`：直接测该播放列表；`sourceKey+vodId`：后端解析详情后取推荐线路首个 m3u8。
+- 最多 4 并发，单条总预算 5s；只 GET 一次播放列表，不下载分片。
+- 响应：
+
+```json
+{"results":[
+  {"key":"source:env_0:12345","ok":true,"ttfbMs":42,"ms":61,"status":200},
+  {"key":"line:...","ok":false,"timedOut":true,"ttfbMs":0,"ms":4000,"error":"探测超时"}
+]}
+```
+
+- `ttfbMs` 为首字节时间，`ms` 为读取完成时间；失败时 `ok=false`，`timedOut` 区分超时。
+- 缓存：成功 30s / 失败 10s。
 
 ## 7. 直播
 

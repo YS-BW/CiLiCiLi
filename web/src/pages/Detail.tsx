@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { VideoDetail, PlayLine, Episode, SourceRef } from '../api/types';
+import type { VideoDetail, PlayLine, Episode, SourceRef, SourceLatencyResult } from '../api/types';
 import { lookupSources } from '../lib/sourceMatch';
+import {
+  latencyClass,
+  latencyLabel,
+  latencyTitle,
+  lineLatencyKey,
+  pickPlaylistURL,
+  probeLatency,
+  sourceLatencyKey,
+} from '../lib/latency';
 import { createRoom, loadNickname, saveNickname } from '../lib/watchparty';
 import { saveWatchRoomMeta, type WatchRoomMeta } from './WatchRoom';
 
@@ -27,6 +36,8 @@ export default function Detail() {
   const [nicknameOpen, setNicknameOpen] = useState(false);
   const [heroBg, setHeroBg] = useState<{ url: string; wide: boolean } | null>(null);
   const [allSources, setAllSources] = useState<SourceRef[]>([]);
+  const [sourceLatency, setSourceLatency] = useState<Record<string, SourceLatencyResult>>({});
+  const [lineLatency, setLineLatency] = useState<Record<string, SourceLatencyResult>>({});
   const [showEps, setShowEps] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nicknameInputRef = useRef<HTMLInputElement | null>(null);
@@ -57,6 +68,43 @@ export default function Detail() {
       .then(list => { if (!cancelled) setAllSources(list); })
       .catch(() => { if (!cancelled) setAllSources([current]); });
     return () => { cancelled = true; };
+  }, [detail, sourceKey, vodId]);
+
+  // 片源延迟：列表先出来，稍后再后台探测；不阻塞首屏。
+  useEffect(() => {
+    if (allSources.length === 0) return;
+    const items = allSources.map(source => ({
+      key: sourceLatencyKey(source.sourceKey, source.vodId),
+      sourceKey: source.sourceKey,
+      vodId: source.vodId,
+    }));
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      probeLatency(items)
+        .then(map => { if (!cancelled) setSourceLatency(prev => ({ ...prev, ...map })); })
+        .catch(() => { /* 延迟只是辅助信息，失败不打扰用户 */ });
+    }, 150);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [allSources]);
+
+  // 线路延迟：当前详情里每条线路测第一条 m3u8，换线路时可对比。
+  useEffect(() => {
+    setLineLatency({});
+    if (!detail) return;
+    const items = detail.playLines
+      .map((line, index) => ({
+        key: lineLatencyKey(sourceKey, vodId, line.id || String(index)),
+        url: pickPlaylistURL(line.episodes),
+      }))
+      .filter(item => item.url);
+    if (items.length === 0) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      probeLatency(items)
+        .then(map => { if (!cancelled) setLineLatency(map); })
+        .catch(() => { /* ignore */ });
+    }, 150);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [detail, sourceKey, vodId]);
 
   // 详情页大图：预加载 big 封面，按图片朝向决定展示方式（横图才铺满，竖图不拉伸）。
@@ -265,10 +313,13 @@ export default function Detail() {
               <span>片源</span>
               {allSources.map(s => {
                 const cur = s.sourceKey === sourceKey && s.vodId === vodId;
+                const lat = sourceLatency[sourceLatencyKey(s.sourceKey, s.vodId)];
                 return (
                   <span key={s.sourceKey + ':' + s.vodId} className={`l${cur ? ' active' : ''}`}
+                    title={latencyTitle(lat)}
                     onClick={() => { if (!cur) nav(`/play/${encodeURIComponent(s.sourceKey)}/${encodeURIComponent(s.vodId)}`); }}>
                     {s.sourceName || s.sourceKey}
+                    <em className={`lat ${latencyClass(lat)}`}>{latencyLabel(lat)}</em>
                   </span>
                 );
               })}
@@ -277,10 +328,17 @@ export default function Detail() {
           {detail.playLines.length > 1 && (
             <div className="lines">
               <span>线路</span>
-              {detail.playLines.map((l, i) => (
-                <span key={l.id} className={`l${i === lineIdx ? ' active' : ''}`}
-                  onClick={() => { setLineIdx(i); setEpIdx(0); }}>{l.name || `线路${i + 1}`}{l.preferred ? ' · 推荐' : ''}</span>
-              ))}
+              {detail.playLines.map((l, i) => {
+                const lat = lineLatency[lineLatencyKey(sourceKey, vodId, l.id || String(i))];
+                return (
+                  <span key={l.id} className={`l${i === lineIdx ? ' active' : ''}`}
+                    title={latencyTitle(lat)}
+                    onClick={() => { setLineIdx(i); setEpIdx(0); }}>
+                    {l.name || `线路${i + 1}`}{l.preferred ? ' · 推荐' : ''}
+                    <em className={`lat ${latencyClass(lat)}`}>{latencyLabel(lat)}</em>
+                  </span>
+                );
+              })}
             </div>
           )}
           <div className="sec-title">选集{line ? <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>共 {line.episodes.length} 集</span> : null}</div>

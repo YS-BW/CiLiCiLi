@@ -24,6 +24,7 @@ import (
 	"cilicili/internal/cache"
 	"cilicili/internal/config"
 	"cilicili/internal/detail"
+	"cilicili/internal/latency"
 	"cilicili/internal/media"
 	"cilicili/internal/model"
 	"cilicili/internal/probe"
@@ -93,6 +94,8 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 			return body(200, "application/json", `{"code":1,"list":[{"vod_id":"1","vod_name":"庆余年","vod_play_from":"lineA$$$lineB","vod_play_url":"第1集$https://cdn.test/1.m3u8#第2集$https://cdn.test/2.m3u8$$$正片$https://cdn2.test/full.mp4"}]}`), nil
 		case strings.Contains(rawURL, "ac=videolist&wd="):
 			return body(200, "application/json", `{"code":1,"pagecount":"1","list":[{"vod_id":"1","vod_name":"庆余年","vod_pic":"https://img.test/1.jpg","type_name":"剧集","vod_year":"2019"}]}`), nil
+		case strings.Contains(rawURL, ".m3u8"):
+			return body(200, "application/vnd.apple.mpegurl", "#EXTM3U\n#EXTINF:1,\nhttps://cdn.test/seg.ts\n"), nil
 		case strings.HasSuffix(rawURL, ".jpg"):
 			return bodyRaw(200, "image/png", pngData), nil
 		default:
@@ -179,11 +182,12 @@ func newTestServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	prober := probe.New(doer, registry, health, sourceStore, log, probe.Config{Timeout: time.Second, Concurrency: 2})
 	prober.Start(context.Background())
 	t.Cleanup(prober.Stop)
+	latencyProber := latency.New(latency.Options{Client: doer, UA: cfg.UserAgent, Timeout: time.Second})
 	apiHandler := api.New(api.Deps{
 		Cfg: cfg, Log: log, Auth: authMgr, Searcher: searcher, Detail: resolver,
 		Registry: registry, Cache: store, Client: doer, Proxy: proxyHandler, LiveProxy: liveHandler,
 		UserData: userStore, Media: mediaMgr, Sources: sourceStore,
-		Subscribe: fakeSubscribe{}, Prober: prober, Version: cfg.Version,
+		Subscribe: fakeSubscribe{}, Prober: prober, Latency: latencyProber, Version: cfg.Version,
 	})
 	h := server.New(server.Deps{API: apiHandler, Cfg: cfg, Log: log, Auth: authMgr})
 	ts := httptest.NewServer(h)
